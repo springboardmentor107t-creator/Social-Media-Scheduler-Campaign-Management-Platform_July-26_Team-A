@@ -1,59 +1,91 @@
-# 🚀 SocialPilot: Social Media Scheduler & Campaign Management Platform
+# 🚀 SocialPilot – Social Media Scheduler & Campaign Management Platform
 
-A centralized, production-ready social media scheduling platform. SocialPilot enables users, content creators, and businesses to orchestrate, schedule, and publish media campaigns across various social platforms from a single web interface.
-
----
-
-## 🧭 Interactive Table of Contents
-*   [⚡ Quick Start](#-quick-start)
-*   [📂 Interactive Directory Explorer](#-interactive-directory-explorer)
-*   [🏗️ Clean Architecture Overview](#%EF%B8%8F-clean-architecture-overview)
-*   [🛠️ Technology Stack & Ports](#%EF%B8%8F-technology-stack--ports)
-*   [🔄 Database Configurations](#-database-configurations)
+A centralized social media management platform designed to help individuals, businesses, content creators, and marketing teams efficiently manage their social media presence.
 
 ---
 
-## ⚡ Quick Start
+## 🧭 Interactive Navigation
+*   [📌 Project Overview](#-project-overview)
+*   [🎯 Objectives](#-objectives)
+*   [🛠 Tech Stack](#-tech-stack)
+*   [🏛 Architecture](#-architecture)
+*   [📂 Project Structure Explorer](#-project-structure-explorer)
+*   [📚 Core Modules](#-core-modules)
+*   [⚙ Setup Instructions](#-setup-instructions)
+*   [🌿 Git Branch Strategy](#-git-branch-strategy)
+*   [👥 Team & License](#-team)
+*   [🚀 Milestone 1 Status](#-milestone-1)
 
-<details>
-<summary><b>1. Prerequisites (Expand to view)</b></summary>
-<br>
+---
 
-Ensure you have the following installed on your host system:
-*   [Docker Desktop](https://www.docker.com/products/docker-desktop/) (with Docker Compose support)
-*   [Node.js](https://nodejs.org/) *(Optional: for running frontend outside container)*
-*   [Python 3.10+](https://www.python.org/) *(Optional: for running backend outside container)*
-</details>
+## 📌 Project Overview
 
-<details>
-<summary><b>2. Running the Application via Docker Compose (Expand to view)</b></summary>
-<br>
+SocialPilot enables users to create, schedule, publish, and analyze content across multiple social media platforms from a single dashboard. It provides campaign management, analytics, notifications, and reporting features to improve productivity and audience engagement.
 
-Boot all services in development mode with active hot-reloading:
+---
 
-```bash
-docker-compose up --build
+## 🎯 Objectives
+
+- [x] Manage multiple social media accounts
+- [x] Create and schedule posts
+- [x] Publish content across different platforms
+- [x] Track campaign performance
+- [x] Monitor analytics and engagement
+- [x] Generate reports
+- [x] Provide notifications and reminders
+- [x] Follow Clean Architecture principles for scalability and maintainability
+
+---
+
+## 🛠 Tech Stack
+
+| Frontend | Backend | Database | DevOps |
+| :--- | :--- | :--- | :--- |
+| • React.js / Next.js<br>• TypeScript<br>• Tailwind CSS<br>• Axios<br>• React Router<br>• React Hook Form | • FastAPI<br>• Python 3.11+<br>• SQLAlchemy<br>• Alembic<br>• JWT Authentication<br>• Pydantic | • PostgreSQL<br>• MongoDB | • Docker & Docker Compose<br>• Git & GitHub |
+
+---
+
+## 🏛 Architecture
+
+This project follows a **Monolithic Architecture** with **Clean Architecture** principles.
+
+### Clean Architecture Layers
+
+```
+  ┌─────────────────────────────────────────────────────────┐
+  │ Presentation Layer (Routes, Request Handling, Auth)     │
+  │   ┌─────────────────────────────────────────────────┐   │
+  │   │ Application Layer (Use Cases, Services, DTOs)   │   │
+  │   │   ┌─────────────────────────────────────────┐   │   │
+  │   │   │ Domain Layer (Entities, Repositories)   │   │   │
+  │   │   └─────────────────────────────────────────┘   │   │
+  │   └─────────────────────────────────────────────────┘   │
+  │ Infrastructure Layer (Database, External APIs, Storage) │
+  └─────────────────────────────────────────────────────────┘
 ```
 
-Upon successful startup, Docker will run the following services:
-*   **Frontend UI** on `http://localhost:5173`
-*   **FastAPI API Docs** on `http://localhost:8000/docs`
-*   **PostgreSQL Database** on `localhost:5432`
-*   **MongoDB Database** on `localhost:27017`
+<details>
+<summary><b>📖 Layer Responsibilities (Click to expand)</b></summary>
+<br>
+
+*   **Presentation Layer**: API Routes, Request Handling, Authentication, and Custom Middlewares.
+*   **Application Layer**: Business Use Cases, Services, Data Transfer Objects (DTOs), and Validation rules.
+*   **Domain Layer**: Core Business Entities, Repository Interfaces, and fundamental Business Rules.
+*   **Infrastructure Layer**: Databases (SQLAlchemy, Motor), Repository Implementations, External API integrations, and Storage hooks.
 </details>
 
 ---
 
-## 📂 Interactive Directory Explorer
-*Click on any folder icon below to expand and view its subfolders, files, and architectural description.*
+## 📂 Project Structure Explorer
+*Click on any folder to expand and explore the underlying structure.*
 
 <details>
-<summary><b>📂 SocialPilot Root Workspace</b></summary>
+<summary><b>📂 SocialPilot Root Workspace Files</b></summary>
 <blockquote>
 
-*   `docker-compose.yml` - Orchestrates the containerized frontend, backend, and DB services.
-*   `.gitignore` - Configured patterns for Node, Python, and local configs.
-*   `README.md` - This interactive repository documentation.
+*   `docker-compose.yml` - Multi-service Docker orchestration setup.
+*   `README.md` - Interactive project documentation.
+*   `.gitignore` - Project-level git ignore rules.
 </blockquote>
 </details>
 
@@ -61,150 +93,162 @@ Upon successful startup, Docker will run the following services:
 <summary><b>📂 frontend/ (React Client Application)</b></summary>
 <blockquote>
 
-*   `package.json` - Lists frontend Node dependencies (Vite, React, Lucide icons, etc.).
-*   `vite.config.ts` - Vite compiler and hot-reloading configurations.
-*   `index.html` - Primary HTML entry point, styled using Outfit and Inter fonts.
-*   `Dockerfile` - Container setup for the client dev server.
-*   `src/` - Core application codebase:
+*   `package.json` - Lists frontend Node dependencies.
+*   `vite.config.ts` - Vite compiler and server configurations.
+*   `index.html` - HTML document root.
+*   `Dockerfile` - Container setup for the client development environment.
+*   `src/` - Client codebase directories:
     
     <details style="margin-left: 20px;">
-    <summary><b>📂 src/ Directories Breakdown</b></summary>
+    <summary><b>📂 src/ Folders</b></summary>
     
-    *   `assets/` - Global styling, custom icons, and static assets.
-    *   `components/` - Reusable UI widgets and layout modules (Buttons, Modals, Cards).
-    *   `layouts/` - Wrapping page frames (e.g. DashboardLayout, AuthenticationLayout).
-    *   `pages/` - Parent routing pages (Dashboard, Scheduler, Analytics).
-    *   `routes/` - Client-side route declarations and authorization guards.
-    *   `hooks/` - Reusable React hooks for general hooks.
-    *   `services/` - API communications (fetching endpoints, axios configurations).
-    *   `context/` - Global context states (Authentication tokens, Theme triggers).
-    *   `utils/` - Shared helper operations and formatting algorithms.
-    *   `App.tsx` - App component containing navigation and active tab router.
-    *   `main.tsx` - Root rendering engine initiating React.
+    *   `assets/` - Static files, styles, and custom branding assets.
+    *   `components/` - Shared UI widgets and stateless controls.
+    *   `layouts/` - Wrapping templates for different routes (e.g. Auth, Dashboard).
+    *   `pages/` - Parent route views (Dashboard, Scheduler, Analytics).
+    *   `routes/` - Router rules and client guards.
+    *   `hooks/` - Custom utility React hooks.
+    *   `services/` - Endpoint connector client files.
+    *   `context/` - Global context states.
+    *   `utils/` - Shared helper operations.
+    *   `App.tsx` - Root App component.
+    *   `main.tsx` - DOM renderer.
     </details>
 </blockquote>
 </details>
 
 <details>
-<summary><b>📂 backend/ (FastAPI Clean Architecture Application)</b></summary>
+<summary><b>📂 backend/ (FastAPI Application)</b></summary>
 <blockquote>
 
-*   `requirements.txt` - Lists python dependencies (FastAPI, SQLAlchemy, Motor, etc.).
-*   `Dockerfile` - Container blueprint compiling python layers and drivers.
-*   `.env` - Environmental file containing access credentials and DB links.
-*   `app/` - Python application module following Clean Architecture layers:
+*   `requirements.txt` - Lists python dependencies.
+*   `Dockerfile` - Container configuration for backend services.
+*   `.env` - Environmental variables setup.
+*   `app/` - Python source modules:
     
     <details style="margin-left: 20px;">
-    <summary><b>📂 app/domain/ (Domain Layer - Business Rules Core)</b></summary>
+    <summary><b>📂 app/ Folders (Clean Architecture)</b></summary>
     
-    *Contains enterprise-wide business rules. Independent of external frameworks.*
-    *   `entities/` - Defines core models (e.g. User, Post, Schedule).
-    *   `repositories/` - Abstract repository interfaces defining DB interaction boundaries.
-    *   `interfaces/` - Other structural protocols and interface boundaries.
-    </details>
-
-    <details style="margin-left: 20px;">
-    <summary><b>📂 app/application/ (Application Layer - Use Cases)</b></summary>
-    
-    *Orchestrates the data flow to and from the domain layer.*
-    *   `use_cases/` - Concrete commands (e.g. PublishPostUseCase, CreateCampaignUseCase).
-    *   `services/` - Application logic workflows crossing multiple boundaries.
-    *   `dto/` - Data Transfer Objects representing transaction packets.
-    </details>
-
-    <details style="margin-left: 20px;">
-    <summary><b>📂 app/infrastructure/ (Infrastructure Layer - Frameworks & Drivers)</b></summary>
-    
-    *Adapters for external entities like DB clients, filesystems, and third-party APIs.*
-    *   `database/` - Connection hooks, pool initializers, and SQLAlchemy metadata.
-    *   `repositories/` - Concrete implementations of Domain Repository interfaces.
-    *   `external/` - Integration wrappers for Twitter, Facebook, and LinkedIn APIs.
-    *   `storage/` - Handles file transfers (local uploads or cloud-based S3 adapters).
-    </details>
-
-    <details style="margin-left: 20px;">
-    <summary><b>📂 app/presentation/ (Presentation Layer - API Delivery)</b></summary>
-    
-    *Exposes REST endpoints and formats requests/responses.*
-    *   `api/` - Main routers and path aggregators.
-    *   `routes/` - FastAPI endpoints (e.g. UserRoutes, SchedulerRoutes).
-    *   `middleware/` - Custom CORS adapters, request limiters, and authenticators.
-    *   `schemas/` - Request/Response validation schemas (Pydantic models).
-    </details>
-
-    <details style="margin-left: 20px;">
-    <summary><b>📂 app/core/, shared/, config/</b></summary>
-    
-    *   `core/` - System utilities (logging setups, password encryptions).
-    *   `shared/` - Constants, enumerators, and variables shared between layers.
-    *   `config/` - Settings loader class loading config values from `.env`.
-    *   `main.py` - Application starter defining CORS and status diagnostic endpoints.
+    *   `presentation/` - Endpoints, Routes, Middlewares, and Schemas.
+    *   `application/` - Use cases, App Services, and DTO structures.
+    *   `domain/` - Business entities, Repositories definitions, and Interfaces.
+    *   `infrastructure/` - DB Engines, Repositories implementations, Storage, and External APIs.
+    *   `core/` - Utilities and authentication modules.
+    *   `config/` - App configurations setup.
+    *   `shared/` - Common modules shared across boundaries.
+    *   `main.py` - Root FastAPI entrypoint.
     </details>
 </blockquote>
 </details>
 
 <details>
-<summary><b>📂 database/ (Migrations & Scripts)</b></summary>
+<summary><b>📂 database/ (Migrations & Schemas)</b></summary>
 <blockquote>
 
 *   `postgresql/` - Relational tables and database seeding scripts.
 *   `mongodb/` - Collection configurations and setup files.
-*   `migrations/` - Alembic or manual database update history.
+*   `migrations/` - Database update history (Alembic).
+</blockquote>
+</details>
+
+<details>
+<summary><b>📂 docs/ & architecture/ (Project Design Documents)</b></summary>
+<blockquote>
+
+*   `docs/` - General user guides and API documentation.
+*   `architecture/` - Systems designs, diagrams, and project specifications.
 </blockquote>
 </details>
 
 ---
 
-## 🏗️ Clean Architecture Overview
+## 📚 Core Modules
 
-In this project, the codebase is structured so dependencies flow strictly inwards:
-
-```
-  ┌─────────────────────────────────────────────────────────┐
-  │ Presentation (FastAPI Routes, Schemas, CORS)            │
-  │   ┌─────────────────────────────────────────────────┐   │
-  │   │ Application (Use Cases, Application DTOs)       │   │
-  │   │   ┌─────────────────────────────────────────┐   │   │
-  │   │   │ Domain (Entities, Repository Interfaces)│   │   │
-  │   │   └─────────────────────────────────────────┘   │   │
-  │   └─────────────────────────────────────────────────┘   │
-  │ Infrastructure (SQLAlchemy, Motor DB, APIs, S3)         │
-  └─────────────────────────────────────────────────────────┘
-```
-
-1.  **Domain (Core)**: Represents business logic. It depends on nothing else and has no reference to frameworks, databases, or UI.
-2.  **Application**: Implements application-specific business use cases.
-3.  **Presentation / Infrastructure (Outer Circle)**: Interacts with the outside world (web clients, databases, third-party APIs).
+*   👥 **User Management** - Profile editing, settings, roles registration.
+*   🔑 **Authentication & Authorization** - JWT-based authentication system.
+*   🔗 **Social Account Management** - Integration connectors for social media accounts.
+*   📝 **Content Management** - Rich text editors, media assets uploads, templates.
+*   📊 **Campaign Management** - Campaign planning, tag clusters, organization filters.
+*   📅 **Post Scheduling** - Scheduled time queues, chronological calendars.
+*   📈 **Analytics Dashboard** - Graph statistics showing click rates, visual performance.
+*   🔔 **Notification Service** - Reminders, error warnings, push events.
+*   📁 **Reporting Module** - Exportable PDF/CSV reports.
 
 ---
 
-## 🛠️ Technology Stack & Ports
+## ⚙ Setup Instructions
 
-| Component | Technology | Default Dev Port | Container Service Name |
-| :--- | :--- | :--- | :--- |
-| **Frontend** | React, TypeScript, Vite | `5173` | `socialpilot_frontend` |
-| **Backend** | Python, FastAPI, Uvicorn | `8000` | `socialpilot_backend` |
-| **Relational DB** | PostgreSQL 15 | `5432` | `socialpilot_postgres` |
-| **NoSQL DB** | MongoDB 6.0 | `27017` | `socialpilot_mongodb` |
+### 1. Clone Repository & Checkout Branch
+```bash
+git clone <repository-url>
+cd Social-Media-Scheduler-Campaign-Management-Platform_July-26_Team-A
+git checkout Milestone-1
+```
+
+### 2. Backend Setup
+```bash
+cd backend
+
+# Create Virtual Environment
+python -m venv venv
+
+# Activate Virtual Environment (Windows)
+venv\Scripts\activate
+
+# Activate Virtual Environment (Linux / macOS)
+source venv/bin/activate
+
+# Install Dependencies
+pip install -r requirements.txt
+
+# Run FastAPI Development Server
+uvicorn app.main:app --reload
+```
+*   **API Root**: `http://localhost:8000`
+*   **Swagger Docs**: `http://localhost:8000/docs`
+
+### 3. Frontend Setup
+```bash
+cd ../frontend
+
+# Install node modules
+npm install
+
+# Start Vite server
+npm run dev
+```
+*   **Client URL**: `http://localhost:5173`
 
 ---
 
-## 🔄 Database Configurations
+## 🌿 Git Branch Strategy
 
-<details>
-<summary><b>Relational Database (PostgreSQL) Details</b></summary>
-<br>
+*   `main` → Stable Production Branch
+*   `Develop` → Integration Branch
+*   `Milestone-1` → Current Development
+*   `Milestone-2`
+*   `Milestone-3`
+*   `Milestone-4`
 
-*   **Primary Engine**: PostgreSQL 15.
-*   **Purpose**: Manages accounts, credentials, subscription configurations, and scheduled job times.
-*   **ORM Integration**: SQLAlchemy 2.0 with PostgreSQL binary drivers.
-</details>
+---
 
-<details>
-<summary><b>NoSQL Database (MongoDB) Details</b></summary>
-<br>
+## 👥 Team
+**Infosys Springboard Internship**
+*   **Project**: SocialPilot – Social Media Scheduler & Campaign Management Platform
+*   **Team**: Team A
 
-*   **Primary Engine**: MongoDB 6.0.
-*   **Purpose**: Stores document-style JSON payloads: campaign assets, media lists, audit logs, and performance analytics.
-*   **Integration**: Async Motor driver.
-</details>
+---
+
+## 📄 License
+This project is developed as part of the Infosys Springboard Internship Program.
+
+---
+
+## 🚀 Milestone 1
+- [x] Project Setup
+- [x] Clean Architecture
+- [x] Frontend Structure
+- [x] Backend Structure
+- [x] Database Structure
+- [x] Documentation
+- [x] Initial GitHub Repository Setup
