@@ -207,7 +207,20 @@ uvicorn app.main:app --reload
 *   **API Root**: `http://localhost:8000`
 *   **Swagger Docs**: `http://localhost:8000/docs`
 
-### 3. Frontend Setup
+### 3. Database Setup
+```bash
+# Start PostgreSQL and MongoDB services
+docker compose up -d postgres mongodb
+
+# Apply SQLAlchemy schema for PostgreSQL
+cd backend
+python -m alembic -c ../database/migrations/alembic.ini upgrade head
+```
+
+*   **PostgreSQL**: `localhost:5432`
+*   **MongoDB**: `localhost:27017`
+
+### 4. Frontend Setup
 ```bash
 cd ../frontend
 

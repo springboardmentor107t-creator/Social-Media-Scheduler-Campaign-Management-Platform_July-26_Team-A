@@ -29,8 +29,8 @@ def health_check():
     # 1. Check PostgreSQL Connection
     postgres_status = "disconnected"
     db_url = os.getenv(
-        "DATABASE_URL", 
-        "postgresql://socialpilot_user:socialpilot_password@postgres:5432/socialpilot_db"
+        "DATABASE_URL",
+        "postgresql+psycopg://socialpilot_user:socialpilot_password@postgres:5432/socialpilot_db"
     )
     try:
         engine = create_engine(db_url, connect_args={'connect_timeout': 2})
