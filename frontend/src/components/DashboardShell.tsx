@@ -3,10 +3,12 @@ import ThemeToggle from "./ThemeToggle";
 
 const NAV = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Profile", href: "/dashboard/profile" },
   { label: "Connect Accounts", href: "/dashboard/connect" },
   { label: "Team", href: "/dashboard/team" },
   { label: "Settings", href: "/dashboard/settings" },
 ];
+
 
 interface DashboardShellProps {
   active?: string;

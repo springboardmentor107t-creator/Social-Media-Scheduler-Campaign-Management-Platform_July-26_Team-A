@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapLoader from "./MapLoader";
 import ThemeToggle from "./ThemeToggle";
+import { setTokens } from "../services/api";
 
 const ROLES = ["Content Creator", "Marketing Team", "Business User", "Administrator"];
 
@@ -39,20 +40,104 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
     setTimeout(() => setToast(""), 2200);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    const emailVal = (document.getElementById("email") as HTMLInputElement)?.value;
+    const passwordVal = (document.getElementById("password") as HTMLInputElement)?.value;
+
+    if (!emailVal || !passwordVal) {
+      showToast("Please enter email and password.");
+      return;
+    }
+
     setSubmitting(true);
-    showToast("Signed in — loading your workspace…");
-    // TODO: replace with real POST /api/auth/login call to the FastAPI backend
-    setTimeout(() => navigate("/dashboard"), 500);
+    try {
+      const response = await fetch("http://localhost:8000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: emailVal,
+          password: passwordVal,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Login failed");
+      }
+
+      // Store both tokens and display info
+      setTokens(data.access_token, data.refresh_token);
+      localStorage.setItem("userEmail", data.user.email);
+      localStorage.setItem("userName", data.user.full_name || data.user.username);
+
+      showToast("Signed in — loading your workspace…");
+      setTimeout(() => navigate("/dashboard"), 500);
+    } catch (err: any) {
+      showToast(err.message || "Invalid email or password.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nameVal = (document.getElementById("name") as HTMLInputElement)?.value;
+    const emailVal = (document.getElementById("signup-email") as HTMLInputElement)?.value;
+    const passwordVal = (document.getElementById("signup-password") as HTMLInputElement)?.value;
+    const confirmVal = (document.getElementById("confirm") as HTMLInputElement)?.value;
+
+    if (!nameVal || !emailVal || !passwordVal || !confirmVal) {
+      showToast("Please fill in all required fields.");
+      return;
+    }
+
+    if (passwordVal !== confirmVal) {
+      showToast("Passwords do not match.");
+      return;
+    }
+
+    if (passwordVal.length < 6) {
+      showToast("Password must be at least 6 characters.");
+      return;
+    }
+
     setSubmitting(true);
-    showToast("Account created — welcome aboard!");
-    // TODO: replace with real POST /api/auth/register call to the FastAPI backend
-    setTimeout(() => navigate("/dashboard"), 500);
+    try {
+      const response = await fetch("http://localhost:8000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: emailVal,
+          password: passwordVal,
+          full_name: nameVal,
+          username: emailVal.split("@")[0],
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Registration failed");
+      }
+
+      // Store both tokens and display info
+      setTokens(data.access_token, data.refresh_token);
+      localStorage.setItem("userEmail", data.user.email);
+      localStorage.setItem("userName", data.user.full_name || data.user.username);
+
+      showToast("Account created — welcome aboard!");
+      setTimeout(() => navigate("/dashboard"), 500);
+    } catch (err: any) {
+      showToast(err.message || "Registration failed.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const copy = COPY[mode];
