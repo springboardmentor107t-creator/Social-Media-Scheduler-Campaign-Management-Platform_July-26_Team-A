@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content
 from database.postgresql.connection import init_db
+from database.mongodb.connection import init_mongo_indexes
 from app.presentation.dependencies.auth import RBACException
 
 app = FastAPI(
@@ -40,12 +41,12 @@ app.include_router(users.router)
 app.include_router(content.router)
 
 @app.on_event("startup")
-def startup_db():
+async def startup_db():
     try:
-        init_db()
-        print("Database tables initialized successfully.")
+        await init_mongo_indexes()
+        print("MongoDB indexes initialized successfully.")
     except Exception as e:
-        print(f"Failed to initialize database tables: {e}")
+        print(f"Failed to initialize MongoDB indexes: {e}")
 
 
 # CORS configuration
