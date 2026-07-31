@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import MapLoader from "./MapLoader";
 import ThemeToggle from "./ThemeToggle";
-import { setTokens } from "../services/api";
+import { setTokens, apiFetch } from "../services/api";
 
 const ROLES = ["Content Creator", "Marketing Team", "Business User", "Administrator"];
 
@@ -52,32 +52,24 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
 
     setSubmitting(true);
     try {
-      const response = await fetch("http://localhost:8000/api/auth/login", {
+      const data = await apiFetch<{
+        access_token: string;
+        refresh_token: string;
+        user: { email: string; full_name?: string; username: string };
+      }>("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: emailVal,
-          password: passwordVal,
-        }),
+        skipRefresh: true,
+        body: JSON.stringify({ email: emailVal, password: passwordVal }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Login failed");
-      }
-
-      // Store both tokens and display info
       setTokens(data.access_token, data.refresh_token);
       localStorage.setItem("userEmail", data.user.email);
       localStorage.setItem("userName", data.user.full_name || data.user.username);
 
       showToast("Signed in — loading your workspace…");
       setTimeout(() => navigate("/dashboard"), 500);
-    } catch (err: any) {
-      showToast(err.message || "Invalid email or password.");
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Invalid email or password.");
     } finally {
       setSubmitting(false);
     }
@@ -107,11 +99,13 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
 
     setSubmitting(true);
     try {
-      const response = await fetch("http://localhost:8000/api/auth/register", {
+      const data = await apiFetch<{
+        access_token: string;
+        refresh_token: string;
+        user: { email: string; full_name?: string; username: string };
+      }>("/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        skipRefresh: true,
         body: JSON.stringify({
           email: emailVal,
           password: passwordVal,
@@ -120,21 +114,14 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
         }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Registration failed");
-      }
-
-      // Store both tokens and display info
       setTokens(data.access_token, data.refresh_token);
       localStorage.setItem("userEmail", data.user.email);
       localStorage.setItem("userName", data.user.full_name || data.user.username);
 
       showToast("Account created — welcome aboard!");
       setTimeout(() => navigate("/dashboard"), 500);
-    } catch (err: any) {
-      showToast(err.message || "Registration failed.");
+    } catch (err: unknown) {
+      showToast((err as Error).message || "Registration failed.");
     } finally {
       setSubmitting(false);
     }

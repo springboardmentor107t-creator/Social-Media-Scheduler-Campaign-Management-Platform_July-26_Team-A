@@ -14,7 +14,7 @@ A centralized social media management platform designed to help individuals, bus
 *   [⚙ Setup Instructions](#-setup-instructions)
 *   [🌿 Git Branch Strategy](#-git-branch-strategy)
 *   [👥 Team & License](#-team)
-*   [🚀 Milestone 1 Status](#-milestone-1)
+*   [🚀 Milestone 1 Status Dashboard](#-milestone-1-status-dashboard)
 
 ---
 
@@ -257,11 +257,36 @@ This project is developed as part of the Infosys Springboard Internship Program.
 
 ---
 
-## 🚀 Milestone 1
-- [x] Project Setup
-- [x] Clean Architecture
-- [x] Frontend Structure
-- [x] Backend Structure
-- [x] Database Structure
-- [x] Documentation
-- [x] Initial GitHub Repository Setup
+## 🚀 Milestone 1 Status Dashboard
+
+Below is the live status dashboard for the **Milestone 1** deliverables. It showcases completed items (green glowing LEDs) and pending integration stubs (orange blinking LEDs).
+
+![Milestone 1 Status Dashboard](./docs/milestone1_status.svg)
+
+<details>
+<summary><b>📊 Expand for Detailed Deliverables Breakdown</b></summary>
+<br>
+
+### 🗄️ Database Team
+- [x] **PostgreSQL & MongoDB configured** (configured inside `docker-compose.yml`)
+- [x] **Database Schema created** (SQLAlchemy user & social account models defined in `database/postgresql/models.py`)
+- [x] **SQLAlchemy ORM configured and connected** (configured in `database/postgresql/connection.py`)
+- [x] **Alembic migrations created & tested** (migrations populated under `database/migrations/versions/`)
+
+### ⚙️ Backend Team
+- [x] **FastAPI project setup completed** (entrypoint in `backend/app/main.py`)
+- [x] **JWT Authentication APIs working** (`/register`, `/login`, and `/refresh` token rotation in `auth.py`)
+- [x] **Role-Based Access Control (RBAC) implemented** (hierarchical role enforcement and ownership guards in `app/presentation/dependencies/auth.py` and validated in `backend/tests/test_rbac.py`)
+- [ ] **Social Account Integration APIs working** (⚠️ **PENDING** - Backend OAuth routes and service layers are currently absent; database schema exists but business logic/API routes are missing)
+- [x] **Account Management APIs working** (Profile update, change password, email verification, and deactivation routes working in `app/presentation/routes/users.py`)
+- [x] **Swagger documentation available** (served automatically at `http://localhost:8000/docs`)
+
+### 💻 Frontend Team
+- [x] **Vite/React project setup completed** (configured in `frontend/package.json`, migrated successfully from the original Next.js codebase to Vite)
+- [x] **Login/Register screens ready** (implemented in `pages/LoginPage.tsx` / `pages/SignupPage.tsx` using `AuthScreen.tsx`)
+- [x] **User Profile & Account Management pages ready** (functional in `pages/ProfilePage.tsx` and `pages/SettingsPage.tsx`)
+- [x] **Social Account Integration dashboard ready** (visual dashboard working in `pages/ConnectPage.tsx` with support for connect/disconnect/reconnect toggles)
+- [x] **UI wireframes converted into working pages** (fully styled using the custom CSS design system variables)
+- [/] **APIs integrated** (Authentication & Account settings are fully connected via `apiFetch` in `frontend/src/services/api.ts`; Social Account triggers are currently stubbed with local mock data in `frontend/src/lib/mockConnectAccounts.ts` due to missing backend OAuth APIs)
+
+</details>

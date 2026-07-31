@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1117" />
+      <stop offset="100%" stop-color="#161b22" />
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="50%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#8b5cf6" />
+    </linearGradient>
+    <linearGradient id="progressBar" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="70%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    
+    <!-- Filters for Glow Effects -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+    <filter id="glow-subtle" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <style>
+    @keyframes progressAnim {
+      from { width: 0%; }
+      to { width: 88%; }
+    }
+    @keyframes pulseGlow {
+      0% { opacity: 0.3; }
+      50% { opacity: 0.8; }
+      100% { opacity: 0.3; }
+    }
+    @keyframes ledPulse {
+      0% { r: 5px; opacity: 0.6; }
+      50% { r: 7px; opacity: 1; filter: drop-shadow(0 0 3px #10b981); }
+      100% { r: 5px; opacity: 0.6; }
+    }
+    @keyframes ledPulseYellow {
+      0% { r: 5px; opacity: 0.6; }
+      50% { r: 7px; opacity: 1; filter: drop-shadow(0 0 3px #f59e0b); }
+      100% { r: 5px; opacity: 0.6; }
+    }
+    @keyframes textGlow {
+      0% { text-shadow: 0 0 4px rgba(16,185,129,0.2); }
+      50% { text-shadow: 0 0 10px rgba(16,185,129,0.6); }
+      100% { text-shadow: 0 0 4px rgba(16,185,129,0.2); }
+    }
+    .text-title {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-weight: 800;
+      fill: #ffffff;
+      font-size: 24px;
+    }
+    .text-subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-weight: 500;
+      fill: #8b949e;
+      font-size: 14px;
+    }
+    .text-header {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-weight: 700;
+      fill: #ffffff;
+      font-size: 16px;
+    }
+    .text-body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      fill: #c9d1d9;
+      font-size: 13px;
+    }
+    .text-bold {
+      font-weight: bold;
+    }
+    .progress-bar-fill {
+      animation: progressAnim 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .pulse-glow-rect {
+      animation: pulseGlow 3s ease-in-out infinite;
+    }
+    .led-green {
+      fill: #10b981;
+      animation: ledPulse 2s infinite ease-in-out;
+    }
+    .led-yellow {
+      fill: #f59e0b;
+      animation: ledPulseYellow 2s infinite ease-in-out;
+    }
+    .title-glow {
+      animation: textGlow 2.5s infinite ease-in-out;
+    }
+  </style>
+
+  <!-- Outer Glowing Border -->
+  <rect x="2" y="2" width="796" height="496" rx="16" fill="url(#cardGrad)" stroke="url(#glowGrad)" stroke-width="2.5" />
+  
+  <!-- Subtle Gradient Background Glow -->
+  <rect x="10" y="10" width="780" height="480" rx="14" fill="none" stroke="#21262d" stroke-width="1" />
+
+  <!-- Title Section -->
+  <g transform="translate(40, 50)">
+    <text class="text-title title-glow">🚀 SocialPilot - Milestone 1 Status Dashboard</text>
+    <text class="text-subtitle" y="25">Infosys Springboard Internship • Team A • Status as of July 31, 2026</text>
+  </g>
+
+  <!-- Overall Progress Bar Container -->
+  <g transform="translate(40, 110)">
+    <rect x="0" y="0" width="720" height="24" rx="12" fill="#21262d" stroke="#30363d" stroke-width="1" />
+    <rect class="progress-bar-fill" x="0" y="0" width="633.6" height="24" rx="12" fill="url(#progressBar)" />
+    <!-- Progress Indicator Label -->
+    <text x="660" y="17" font-family="system-ui" font-weight="800" font-size="14px" fill="#10b981">88%</text>
+  </g>
+
+  <!-- Columns (Database, Backend, Frontend) -->
+  
+  <!-- 1. Database Column (x: 40) -->
+  <g transform="translate(40, 170)">
+    <rect x="0" y="0" width="220" height="280" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1" />
+    <rect x="0" y="0" width="220" height="45" rx="12" fill="#21262d" opacity="0.3" />
+    
+    <!-- Header -->
+    <text class="text-header" x="15" y="28">🗄️ Database Team</text>
+    <text class="text-subtitle" x="170" y="28" fill="#10b981" font-weight="700">100%</text>
+    
+    <!-- Items -->
+    <g transform="translate(15, 70)">
+      <circle class="led-green" cx="5" cy="0" r="5" />
+      <text class="text-body" x="20" y="4">PostgreSQL &amp; Mongo DB</text>
+      
+      <circle class="led-green" cx="5" cy="40" r="5" />
+      <text class="text-body" x="20" y="44">DB Schema Created</text>
+      
+      <circle class="led-green" cx="5" cy="80" r="5" />
+      <text class="text-body" x="20" y="84">SQLAlchemy ORM</text>
+      
+      <circle class="led-green" cx="5" cy="120" r="5" />
+      <text class="text-body" x="20" y="124">Alembic Migrations</text>
+    </g>
+  </g>
+
+  <!-- 2. Backend Column (x: 290) -->
+  <g transform="translate(290, 170)">
+    <rect x="0" y="0" width="220" height="280" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1" />
+    <rect x="0" y="0" width="220" height="45" rx="12" fill="#21262d" opacity="0.3" />
+    
+    <!-- Header -->
+    <text class="text-header" x="15" y="28">⚙️ Backend Team</text>
+    <text class="text-subtitle" x="170" y="28" fill="#f59e0b" font-weight="700">83%</text>
+    
+    <!-- Items -->
+    <g transform="translate(15, 70)">
+      <circle class="led-green" cx="5" cy="0" r="5" />
+      <text class="text-body" x="20" y="4">FastAPI Project Setup</text>
+      
+      <circle class="led-green" cx="5" cy="35" r="5" />
+      <text class="text-body" x="20" y="39">JWT Auth (Reg/Login)</text>
+      
+      <circle class="led-green" cx="5" cy="70" r="5" />
+      <text class="text-body" x="20" y="74">RBAC Implementation</text>
+      
+      <circle class="led-yellow" cx="5" cy="105" r="5" />
+      <text class="text-body" x="20" y="109" fill="#f59e0b">Social APIs (OAuth)</text>
+      <text class="text-subtitle" x="20" y="120" font-size="10px" fill="#8b949e">Pending Implementation</text>
+      
+      <circle class="led-green" cx="5" cy="145" r="5" />
+      <text class="text-body" x="20" y="149">Account Mgmt APIs</text>
+      
+      <circle class="led-green" cx="5" cy="180" r="5" />
+      <text class="text-body" x="20" y="184">Swagger Docs</text>
+    </g>
+  </g>
+
+  <!-- 3. Frontend Column (x: 540) -->
+  <g transform="translate(540, 170)">
+    <rect x="0" y="0" width="220" height="280" rx="12" fill="#161b22" stroke="#30363d" stroke-width="1" />
+    <rect x="0" y="0" width="220" height="45" rx="12" fill="#21262d" opacity="0.3" />
+    
+    <!-- Header -->
+    <text class="text-header" x="15" y="28">💻 Frontend Team</text>
+    <text class="text-subtitle" x="170" y="28" fill="#f59e0b" font-weight="700">83%</text>
+    
+    <!-- Items -->
+    <g transform="translate(15, 70)">
+      <circle class="led-green" cx="5" cy="0" r="5" />
+      <text class="text-body" x="20" y="4">Vite Project Setup</text>
+      <text class="text-subtitle" x="20" y="15" font-size="10px" fill="#8b949e">Migrated from Next.js</text>
+      
+      <circle class="led-green" cx="5" cy="40" r="5" />
+      <text class="text-body" x="20" y="44">Login/Register Screens</text>
+      
+      <circle class="led-green" cx="5" cy="75" r="5" />
+      <text class="text-body" x="20" y="79">User Profile/Settings</text>
+      
+      <circle class="led-green" cx="5" cy="110" r="5" />
+      <text class="text-body" x="20" y="114">Social Connect Dashboard</text>
+      
+      <circle class="led-green" cx="5" cy="145" r="5" />
+      <text class="text-body" x="20" y="149">Wireframes to UI</text>
+      
+      <circle class="led-yellow" cx="5" cy="180" r="5" />
+      <text class="text-body" x="20" y="184" fill="#f59e0b">APIs Integrated</text>
+      <text class="text-subtitle" x="20" y="195" font-size="10px" fill="#8b949e">Auth/Account Ok, OAuth Mocked</text>
+    </g>
+  </g>
+
+  <!-- Footer Info / Legend -->
+  <g transform="translate(40, 470)">
+    <circle cx="10" cy="-5" r="5" fill="#10b981" />
+    <text class="text-subtitle" x="22" y="-1" fill="#8b949e">Completed</text>
+    
+    <circle cx="120" cy="-5" r="5" fill="#f59e0b" />
+    <text class="text-subtitle" x="132" y="-1" fill="#8b949e">Pending / Stubs</text>
+
+    <text class="text-subtitle" x="500" y="-1" font-weight="700" fill="#f85149">⚠ Final Outcome Progress: 5/6 Items Ready</text>
+  </g>
+</svg>
