@@ -15,6 +15,16 @@ class UserRole(str, enum.Enum):
     MANAGER = "manager"
     USER = "user"
 
+class ScheduledPostStatus(str, enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    PUBLISHED = "published"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+class PublishingStatus(str, enum.Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
 
 class User(Base):
     __tablename__ = "users"
@@ -35,8 +45,17 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    social_accounts = relationship("SocialAccount", back_populates="user", cascade="all, delete-orphan")
+    social_accounts = relationship(
+    "SocialAccount",
+    back_populates="user",
+    cascade="all, delete-orphan"
+)
 
+    contents = relationship(
+    "Content",
+    back_populates="owner",
+    cascade="all, delete-orphan"
+)
 
 class SocialAccount(Base):
     __tablename__ = "social_accounts"
@@ -53,6 +72,17 @@ class SocialAccount(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user = relationship("User", back_populates="social_accounts")
+    scheduled_posts = relationship(
+    "ScheduledPost",
+    back_populates="social_account",
+    cascade="all, delete-orphan"
+)
+
+    publishing_logs = relationship(
+    "PublishingLog",
+    back_populates="social_account",
+    cascade="all, delete-orphan"
+)
 
     __table_args__ = (
         UniqueConstraint("user_id", "provider", "provider_account_id", name="uq_social_account_provider"),
@@ -68,4 +98,133 @@ class Content(Base):
     is_approved = Column(Boolean, default=False, server_default="false", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    owner = relationship("User")
+    owner = relationship("User",back_populates="contents")
+    scheduled_posts = relationship(
+    "ScheduledPost",
+    back_populates="content",
+    cascade="all, delete-orphan"
+)
+
+class ScheduledPost(Base):
+    __tablename__ = "scheduled_posts"
+
+    id = Column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        nullable=False
+    )
+
+    content_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("contents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    social_account_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("social_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    scheduled_time = Column(
+        DateTime(timezone=True),
+        nullable=False
+    )
+
+    status = Column(
+        Enum(
+            ScheduledPostStatus,
+            name="scheduled_post_status",
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        default=ScheduledPostStatus.PENDING,
+        server_default="pending",
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False
+    )
+
+    content = relationship(
+        "Content",
+        back_populates="scheduled_posts"
+    )
+
+    social_account = relationship(
+        "SocialAccount",
+        back_populates="scheduled_posts"
+    )
+
+    publishing_logs = relationship(
+        "PublishingLog",
+        back_populates="scheduled_post",
+        cascade="all, delete-orphan"
+    )
+
+
+class PublishingLog(Base):
+    __tablename__ = "publishing_logs"
+
+    id = Column(
+        PGUUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        nullable=False
+    )
+
+    scheduled_post_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("scheduled_posts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    social_account_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("social_accounts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+
+    status = Column(
+    Enum(
+        PublishingStatus,
+        name="publishing_status",
+        values_callable=lambda x: [e.value for e in x]
+    ),
+    nullable=False
+)
+
+    error_message = Column(
+        Text,
+        nullable=True
+    )
+
+    published_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    scheduled_post = relationship(
+        "ScheduledPost",
+        back_populates="publishing_logs"
+    )
+
+    social_account = relationship(
+        "SocialAccount",
+        back_populates="publishing_logs"
+    )
