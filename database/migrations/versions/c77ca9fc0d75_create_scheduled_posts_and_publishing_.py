@@ -22,14 +22,19 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('content_id', sa.UUID(), nullable=False),
     sa.Column('social_account_id', sa.UUID(), nullable=False),
+    sa.Column('parent_scheduled_post_id', sa.UUID(), nullable=True),
     sa.Column('scheduled_time', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('is_recurring', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('recurrence_rule', sa.String(length=50), nullable=True),
     sa.Column('status', sa.Enum('pending', 'processing', 'published', 'failed', 'cancelled', name='scheduled_post_status'), server_default='pending', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['content_id'], ['contents.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['social_account_id'], ['social_accounts.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['parent_scheduled_post_id'], ['scheduled_posts.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_scheduled_posts_parent_scheduled_post_id'), 'scheduled_posts', ['parent_scheduled_post_id'], unique=False)
     op.create_index(op.f('ix_scheduled_posts_content_id'), 'scheduled_posts', ['content_id'], unique=False)
     op.create_index(op.f('ix_scheduled_posts_social_account_id'), 'scheduled_posts', ['social_account_id'], unique=False)
     op.create_table('publishing_logs',

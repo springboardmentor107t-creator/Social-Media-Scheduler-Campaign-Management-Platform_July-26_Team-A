@@ -26,6 +26,17 @@ class PublishingStatus(str, enum.Enum):
     SUCCESS = "success"
     FAILED = "failed"
 
+class ContentType(str, enum.Enum):
+    TEXT = "text"
+    IMAGE = "image"
+    VIDEO = "video"
+    CAROUSEL = "carousel"
+
+class ContentStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PENDING_APPROVAL = "pending_approval"
+    APPROVED = "approved"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -68,6 +79,7 @@ class SocialAccount(Base):
     access_token = Column(Text, nullable=True)
     refresh_token = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    last_sync_time = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -95,15 +107,29 @@ class Content(Base):
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    media_urls = Column(JSON, nullable=True)
+    content_type = Column(
+        Enum(ContentType, name="content_type", values_callable=lambda x: [e.value for e in x]),
+        default=ContentType.TEXT,
+        server_default="text",
+        nullable=False,
+    )
+    status = Column(
+        Enum(ContentStatus, name="content_status", values_callable=lambda x: [e.value for e in x]),
+        default=ContentStatus.DRAFT,
+        server_default="draft",
+        nullable=False,
+    )
     is_approved = Column(Boolean, default=False, server_default="false", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    owner = relationship("User",back_populates="contents")
+    owner = relationship("User", back_populates="contents")
     scheduled_posts = relationship(
-    "ScheduledPost",
-    back_populates="content",
-    cascade="all, delete-orphan"
-)
+        "ScheduledPost",
+        back_populates="content",
+        cascade="all, delete-orphan"
+    )
 
 class ScheduledPost(Base):
     __tablename__ = "scheduled_posts"
@@ -129,10 +155,20 @@ class ScheduledPost(Base):
         index=True
     )
 
+    parent_scheduled_post_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("scheduled_posts.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
     scheduled_time = Column(
         DateTime(timezone=True),
         nullable=False
     )
+
+    is_recurring = Column(Boolean, default=False, server_default="false", nullable=False)
+    recurrence_rule = Column(String(50), nullable=True)
 
     status = Column(
         Enum(
@@ -166,6 +202,12 @@ class ScheduledPost(Base):
     social_account = relationship(
         "SocialAccount",
         back_populates="scheduled_posts"
+    )
+
+    parent_scheduled_post = relationship(
+        "ScheduledPost",
+        remote_side="ScheduledPost.id",
+        backref="child_scheduled_posts",
     )
 
     publishing_logs = relationship(

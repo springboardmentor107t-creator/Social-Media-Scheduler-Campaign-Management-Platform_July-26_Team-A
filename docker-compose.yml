@@ -32,7 +32,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: socialpilot_backend
-    restart: always
+    restart: always 
     ports:
       - "8000:8000"
     env_file:

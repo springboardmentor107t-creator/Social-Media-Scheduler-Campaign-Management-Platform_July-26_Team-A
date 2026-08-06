@@ -13,7 +13,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.main import app
-from database.postgresql.models import Base, User, UserRole
+from database.postgresql.models import (
+    Base,
+    User,
+    UserRole,
+    Content,
+    ContentStatus,
+    ContentType,
+    SocialAccount,
+    ScheduledPost,
+)
 from database.postgresql.connection import get_db
 from app.core.security import create_access_token, get_password_hash
 from app.core.config import settings
@@ -97,6 +106,51 @@ def test_change_password_success():
     )
     assert response.status_code == 200
     assert "access_token" in response.json()
+
+
+def test_content_and_social_schema_supports_extended_fields():
+    user = User(
+        id=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        email="schema@test.com",
+        username="schema-user",
+        password_hash="dummy_hash",
+        role=UserRole.USER,
+        is_active=True,
+        full_name="Schema User",
+        timezone="UTC",
+    )
+
+    content = Content(
+        owner_id=user.id,
+        title="Campaign draft",
+        body="This is the draft body",
+        media_urls=["https://example.com/1.png"],
+        content_type=ContentType.IMAGE,
+        status=ContentStatus.DRAFT,
+    )
+    assert content.body == "This is the draft body"
+    assert content.media_urls == ["https://example.com/1.png"]
+    assert content.content_type == ContentType.IMAGE
+    assert content.status == ContentStatus.DRAFT
+
+    social_account = SocialAccount(
+        user_id=user.id,
+        provider="instagram",
+        provider_account_id="acct-123",
+        account_name="My Instagram",
+        last_sync_time=datetime.utcnow(),
+    )
+    assert social_account.last_sync_time is not None
+
+    scheduled_post = ScheduledPost(
+        content_id=content.id,
+        social_account_id=social_account.id,
+        scheduled_time=datetime.utcnow() + timedelta(days=1),
+        is_recurring=True,
+        recurrence_rule="weekly",
+    )
+    assert scheduled_post.is_recurring is True
+    assert scheduled_post.recurrence_rule == "weekly"
 
 
 def test_change_password_unhappy_paths():
