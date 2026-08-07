@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import DashboardShell from "../components/DashboardShell";
 import SessionRow from "../components/SessionRow";
 import ConfirmModal from "../components/ConfirmModal";
-
-const API_BASE = "http://localhost:8000";
+import { apiFetch } from "../services/api";
 
 // Fallback profile shape used before API data loads
 const INITIAL_PROFILE = {
@@ -63,14 +62,7 @@ export default function ProfilePage() {
   // Account settings state (synced from PATCH /users/me/account)
   const [notificationPrefs, setNotificationPrefs] = useState<Record<string, unknown>>({});
 
-  // ─── Auth helper ───────────────────────────────────────────────────────────
-  const authHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem("accessToken");
-    return {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token ?? ""}`,
-    };
-  };
+
 
   // ─── Fetch profile on mount ────────────────────────────────────────────────
   useEffect(() => {
@@ -84,19 +76,17 @@ export default function ProfilePage() {
       setLoadingProfile(true);
       setProfileError("");
       try {
-        const res = await fetch(`${API_BASE}/users/me`, {
-          headers: authHeaders(),
-        });
-        if (res.status === 401) {
-          localStorage.removeItem("accessToken");
-          navigate("/login", { replace: true });
-          return;
-        }
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail ?? "Failed to load profile");
-        }
-        const data = await res.json();
+        const data = await apiFetch<{
+          full_name?: string;
+          email?: string;
+          phone_number?: string;
+          timezone?: string;
+          bio?: string;
+          avatar_url?: string;
+          role?: string;
+          created_at?: string;
+          notification_preferences?: Record<string, unknown>;
+        }>("/users/me");
         setFullName(data.full_name ?? "");
         setEmail(data.email ?? "");
         setVerifiedEmail(data.email ?? "");
@@ -114,15 +104,12 @@ export default function ProfilePage() {
             })
           );
         }
-        // Sync notification preferences
         if (data.notification_preferences) {
           setNotificationPrefs(data.notification_preferences);
-          // Restore 2FA preference if stored
           if (typeof data.notification_preferences.two_factor_enabled === "boolean") {
             setTwoFactorEnabled(data.notification_preferences.two_factor_enabled);
           }
         }
-        // Sync localStorage display name
         localStorage.setItem("userName", data.full_name ?? "");
         localStorage.setItem("userEmail", data.email ?? "");
       } catch (err: unknown) {
@@ -191,9 +178,11 @@ export default function ProfilePage() {
     if (!isDirty) return;
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/users/me`, {
+      const updated = await apiFetch<{
+        full_name?: string; email?: string; phone_number?: string;
+        timezone?: string; bio?: string; avatar_url?: string;
+      }>("/users/me", {
         method: "PATCH",
-        headers: authHeaders(),
         body: JSON.stringify({
           full_name: fullName,
           phone_number: phone || null,
@@ -202,17 +191,6 @@ export default function ProfilePage() {
           avatar_url: avatarUrl || null,
         }),
       });
-      if (res.status === 401) {
-        localStorage.removeItem("accessToken");
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Failed to update profile");
-      }
-      const updated = await res.json();
-      // Refresh states from server response
       setFullName(updated.full_name ?? "");
       setEmail(updated.email ?? "");
       setVerifiedEmail(updated.email ?? "");
@@ -238,23 +216,13 @@ export default function ProfilePage() {
     }
     setSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/users/me/change-password`, {
+      await apiFetch("/users/me/change-password", {
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify({
           current_password: currentPassword,
           new_password: newPassword,
         }),
       });
-      if (res.status === 401) {
-        localStorage.removeItem("accessToken");
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Failed to update password");
-      }
       showToast("Password updated successfully!");
       setCurrentPassword("");
       setNewPassword("");
@@ -271,25 +239,16 @@ export default function ProfilePage() {
     setSavingAccount(true);
     const prefsToSend = overridePrefs ?? notificationPrefs;
     try {
-      const res = await fetch(`${API_BASE}/users/me/account`, {
+      const updated = await apiFetch<{
+        timezone?: string;
+        notification_preferences?: Record<string, unknown>;
+      }>("/users/me/account", {
         method: "PATCH",
-        headers: authHeaders(),
         body: JSON.stringify({
           timezone,
           notification_preferences: prefsToSend,
         }),
       });
-      if (res.status === 401) {
-        localStorage.removeItem("accessToken");
-        navigate("/login", { replace: true });
-        return;
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Failed to update account settings");
-      }
-      const updated = await res.json();
-      // Reflect server-confirmed values
       setTimezone(updated.timezone ?? "UTC");
       if (updated.notification_preferences) {
         setNotificationPrefs(updated.notification_preferences);
@@ -338,17 +297,11 @@ export default function ProfilePage() {
   // ─── POST /users/me/deactivate ────────────────────────────────────────────
   const confirmDeactivate = async () => {
     try {
-      // Requires a password; reuse currentPassword field if filled, else prompt via toast
       const pwd = currentPassword || window.prompt("Enter your password to confirm deactivation:") || "";
-      const res = await fetch(`${API_BASE}/users/me/deactivate`, {
+      await apiFetch("/users/me/deactivate", {
         method: "POST",
-        headers: authHeaders(),
         body: JSON.stringify({ password: pwd }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail ?? "Deactivation failed");
-      }
       showToast("Your account has been deactivated.");
       localStorage.removeItem("accessToken");
       localStorage.removeItem("userName");

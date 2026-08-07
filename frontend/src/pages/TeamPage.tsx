@@ -3,6 +3,7 @@ import DashboardShell from "../components/DashboardShell";
 import RoleBadge from "../components/RoleBadge";
 import InviteModal from "../components/InviteModal";
 import ConfirmModal from "../components/ConfirmModal";
+import EmptyState, { TeamEmptyIcon } from "../components/EmptyState";
 import { apiFetch } from "../services/api";
 
 // ─── Role mapping ───────────────────────────────────────────────────────────
@@ -334,9 +335,14 @@ export default function TeamPage() {
                     : filteredMembers.length === 0
                     ? (
                       <tr>
-                        <td colSpan={isAdmin ? 6 : 5} className="px-6 py-12 text-center text-sm" style={{ color: "var(--ink-muted)" }}>
-                          No members match your filters.{" "}
-                          <button onClick={clearFilters} className="underline">Clear filters</button>
+                        <td colSpan={isAdmin ? 6 : 5}>
+                          <EmptyState
+                            icon={<TeamEmptyIcon />}
+                            title={searchTerm || selectedRoleFilter !== "All" || selectedStatusFilter !== "All" ? "No members match your filters" : "No team members yet"}
+                            description={searchTerm || selectedRoleFilter !== "All" || selectedStatusFilter !== "All" ? "Try adjusting your search or filters to find who you're looking for." : "Invite teammates to get started."}
+                            actionLabel={searchTerm || selectedRoleFilter !== "All" || selectedStatusFilter !== "All" ? "Clear filters" : undefined}
+                            onAction={searchTerm || selectedRoleFilter !== "All" || selectedStatusFilter !== "All" ? clearFilters : undefined}
+                          />
                         </td>
                       </tr>
                     )

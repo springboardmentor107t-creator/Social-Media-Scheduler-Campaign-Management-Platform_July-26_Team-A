@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MapLoader from "./MapLoader";
 import ThemeToggle from "./ThemeToggle";
 import { setTokens, apiFetch } from "../services/api";
+import { getDashboardRoute, storeAuthRoleAsDisplayRole, DISPLAY_TO_ROUTE_KEY, ROLE_DASHBOARD_PATHS } from "../utils/roleUtils";
 
 const ROLES = ["Content Creator", "Marketing Team", "Business User", "Administrator"];
 
@@ -55,7 +56,7 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
       const data = await apiFetch<{
         access_token: string;
         refresh_token: string;
-        user: { email: string; full_name?: string; username: string };
+        user: { email: string; full_name?: string; username: string; role: string };
       }>("/api/auth/login", {
         method: "POST",
         skipRefresh: true,
@@ -65,9 +66,11 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
       setTokens(data.access_token, data.refresh_token);
       localStorage.setItem("userEmail", data.user.email);
       localStorage.setItem("userName", data.user.full_name || data.user.username);
+      // Store display role derived from backend auth role (manager → "Marketing Team" by default)
+      storeAuthRoleAsDisplayRole(data.user.role);
 
       showToast("Signed in — loading your workspace…");
-      setTimeout(() => navigate("/dashboard"), 500);
+      setTimeout(() => navigate(getDashboardRoute()), 500);
     } catch (err: unknown) {
       showToast((err as Error).message || "Invalid email or password.");
     } finally {
@@ -97,12 +100,14 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
       return;
     }
 
+    const selectedRole = (document.getElementById("role") as HTMLSelectElement)?.value || "Content Creator";
+
     setSubmitting(true);
     try {
       const data = await apiFetch<{
         access_token: string;
         refresh_token: string;
-        user: { email: string; full_name?: string; username: string };
+        user: { email: string; full_name?: string; username: string; role: string };
       }>("/api/auth/register", {
         method: "POST",
         skipRefresh: true,
@@ -117,9 +122,15 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
       setTokens(data.access_token, data.refresh_token);
       localStorage.setItem("userEmail", data.user.email);
       localStorage.setItem("userName", data.user.full_name || data.user.username);
+      // Store the display label the user explicitly chose in the signup dropdown
+      localStorage.setItem("userRole", selectedRole);
+
+      // Resolve the route from the chosen display label
+      const routeKey = DISPLAY_TO_ROUTE_KEY[selectedRole] ?? "creator";
+      const destination = ROLE_DASHBOARD_PATHS[routeKey];
 
       showToast("Account created — welcome aboard!");
-      setTimeout(() => navigate("/dashboard"), 500);
+      setTimeout(() => navigate(destination), 500);
     } catch (err: unknown) {
       showToast((err as Error).message || "Registration failed.");
     } finally {

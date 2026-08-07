@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import DashboardShell from "../components/DashboardShell";
 import ConfirmModal from "../components/ConfirmModal";
+import EmptyState, { PlatformEmptyIcon } from "../components/EmptyState";
 import {
   getConnectedAccounts,
   disconnectAccount,
   type PlatformAccount,
 } from "../lib/mockConnectAccounts";
+import { apiFetch, getAccessToken } from "../services/api";
 
 // ─── Platform SVG icons ───────────────────────────────────────────────────────
 const ICONS: Record<string, JSX.Element> = {
@@ -86,39 +88,86 @@ export default function ConnectPage() {
   const load = useCallback(async (isSyncAction = false) => {
     if (isSyncAction) setSyncing(true); else setLoading(true);
     try {
-      // STUB: replace with apiFetch("/oauth/accounts/status") when backend OAuth is ready
       const data = await getConnectedAccounts();
+      try {
+        const ytStatus = await apiFetch<{
+          connected: boolean;
+          accounts: Array<{ channel_id: string; channel_name: string; email?: string }>;
+        }>("/youtube/status");
+        
+        const ytIdx = data.findIndex(a => a.platform === "youtube");
+        if (ytIdx !== -1) {
+          if (ytStatus.connected && ytStatus.accounts.length > 0) {
+            data[ytIdx].status = "connected";
+            data[ytIdx].handle = ytStatus.accounts[0].channel_name;
+          } else {
+            data[ytIdx].status = "disconnected";
+            data[ytIdx].handle = undefined;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch real YouTube status:", err);
+      }
       setAccounts(data);
     } finally {
       if (isSyncAction) setSyncing(false); else setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true") {
+      showToast("YouTube account connected successfully!");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      load();
+    } else {
+      const errorMsg = params.get("error");
+      if (errorMsg) {
+        showToast(`Failed to connect YouTube: ${decodeURIComponent(errorMsg)}`);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [load]);
+
   useEffect(() => { load(); }, [load]);
 
   const handleConnect = (platform: string) => {
-    /**
-     * TODO: When backend OAuth is ready, change this to:
-     *   window.location.href = `${import.meta.env.VITE_API_BASE_URL}/oauth/${platform}/start`;
-     * Currently STUBBED — no backend OAuth routes exist.
-     */
+    if (platform === "youtube") {
+      const token = getAccessToken();
+      if (!token) {
+        showToast("You must be logged in to connect a YouTube account.");
+        return;
+      }
+      window.location.href = `http://127.0.0.1:8000/auth/youtube/login?token=${encodeURIComponent(token)}`;
+      return;
+    }
     showToast(`OAuth for ${platform} is not yet available — coming soon.`);
   };
 
   const handleDisconnect = async () => {
     if (!disconnectTarget) return;
+    const target = disconnectTarget;
     setDisconnectTarget(null);
     try {
-      // STUB: replace with apiFetch(`/oauth/${disconnectTarget.platform}/disconnect`, { method: "DELETE" })
-      await disconnectAccount(disconnectTarget.platform);
-      setAccounts((prev) =>
-        prev.map((a) =>
-          a.platform === disconnectTarget.platform ? { ...a, status: "disconnected", handle: undefined } : a
-        )
-      );
-      showToast(`${disconnectTarget.displayName} disconnected.`);
-    } catch {
-      showToast("Failed to disconnect. Please try again.");
+      if (target.platform === "youtube") {
+        await apiFetch("/youtube/disconnect", { method: "DELETE" });
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.platform === "youtube" ? { ...a, status: "disconnected", handle: undefined } : a
+          )
+        );
+        showToast("YouTube account disconnected.");
+      } else {
+        await disconnectAccount(target.platform);
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.platform === target.platform ? { ...a, status: "disconnected", handle: undefined } : a
+          )
+        );
+        showToast(`${target.displayName} disconnected.`);
+      }
+    } catch (err: any) {
+      showToast(err.detail || "Failed to disconnect. Please try again.");
     }
   };
 
@@ -135,7 +184,7 @@ export default function ConnectPage() {
             </p>
             {/* STUB notice */}
             <p className="text-xs mt-1 font-semibold" style={{ color: "#f59e0b" }}>
-              ⚠ OAuth backend not yet available — all statuses are mock data.
+              ⚠ OAuth backend for YouTube is LIVE. Other platform integrations are mock data.
             </p>
           </div>
           <button
@@ -154,6 +203,16 @@ export default function ConnectPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {loading
             ? [1, 2, 3, 4, 5, 6].map((i) => <CardSkeleton key={i} />)
+            : accounts.length === 0
+            ? (
+              <div className="col-span-full">
+                <EmptyState
+                  icon={<PlatformEmptyIcon />}
+                  title="No platforms available"
+                  description="No social platforms are configured yet. Contact your administrator to set up integrations."
+                />
+              </div>
+            )
             : accounts.map((account) => (
               <div key={account.platform} className="surface rounded-2xl p-5 flex flex-col gap-4 shadow-sm">
                 <div className="flex items-center justify-between">

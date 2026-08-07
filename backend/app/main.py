@@ -12,6 +12,7 @@ from pymongo import MongoClient
 from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content
+from app.api import youtube
 from database.postgresql.connection import init_db
 from database.mongodb.connection import init_mongo_indexes
 from app.presentation.dependencies.auth import RBACException
@@ -20,6 +21,22 @@ app = FastAPI(
     title="SocialPilot Clean Architecture API",
     description="FastAPI Backend configured with Clean Architecture layers.",
     version="1.0.0"
+)
+
+# CORS must be registered FIRST (before routes) so it wraps all requests.
+# FastAPI/Starlette applies middleware in reverse-registration order.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",      # Vite fallback port when 5173 is busy
+        "http://127.0.0.1:5174",
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Exception handler for RBAC validation failures
@@ -39,6 +56,7 @@ app.include_router(history.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(content.router)
+app.include_router(youtube.router)
 
 @app.on_event("startup")
 async def startup_db():
@@ -49,18 +67,7 @@ async def startup_db():
         print(f"Failed to initialize MongoDB indexes: {e}")
 
 
-# CORS configuration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000", # to be safe for any other local ports
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 @app.get("/")
 def read_root():

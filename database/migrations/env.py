@@ -6,9 +6,11 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'backend')))
 
 from database.postgresql.models import Base
 from database.postgresql.connection import _get_database_url
+from app.models.youtube import YouTubeAccount
 
 config = context.config
 if config.config_file_name is not None:

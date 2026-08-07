@@ -91,11 +91,12 @@ describe('AuthScreen – form validation', () => {
 });
 
 describe('AuthScreen – login submit → redirect', () => {
-  it('calls apiFetch, stores tokens, and navigates to /dashboard on success', async () => {
+  it('calls apiFetch, stores tokens, and navigates to role dashboard on success', async () => {
     mockApiFetch.mockResolvedValueOnce({
       access_token: 'tok-access',
       refresh_token: 'tok-refresh',
-      user: { email: 'a@b.com', full_name: 'Alice', username: 'alice' },
+      // role: "user" → maps to /dashboard/creator via roleUtils
+      user: { email: 'a@b.com', full_name: 'Alice', username: 'alice', role: 'user' },
     });
 
     renderAuth('login');
@@ -106,8 +107,8 @@ describe('AuthScreen – login submit → redirect', () => {
     await waitFor(() => expect(mockApiFetch).toHaveBeenCalledWith('/api/auth/login', expect.objectContaining({ method: 'POST' })));
     expect(setTokens).toHaveBeenCalledWith('tok-access', 'tok-refresh');
 
-    // Navigate fires after 500ms timeout — fast-forward isn't needed since we just wait
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'), { timeout: 1500 });
+    // Navigate fires after 500ms timeout — role "user" → /dashboard/creator
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard/creator'), { timeout: 1500 });
   });
 
   it('shows an error toast when apiFetch rejects', async () => {

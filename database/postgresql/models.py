@@ -242,13 +242,13 @@ class PublishingLog(Base):
     )
 
     status = Column(
-    Enum(
-        PublishingStatus,
-        name="publishing_status",
-        values_callable=lambda x: [e.value for e in x]
-    ),
-    nullable=False
-)
+        Enum(
+            PublishingStatus,
+            name="publishing_status",
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        nullable=False
+    )
 
     error_message = Column(
         Text,
@@ -270,3 +270,15 @@ class PublishingLog(Base):
         "SocialAccount",
         back_populates="publishing_logs"
     )
+
+
+class RoleReference(Base):
+    __tablename__ = "role_reference"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    role_label = Column(String(100), unique=True, nullable=False, index=True)
+    description = Column(Text, nullable=False)
+    key_responsibilities = Column(JSON, nullable=False)  # JSON list of responsibilities
+    maps_to_auth_role = Column(String(50), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

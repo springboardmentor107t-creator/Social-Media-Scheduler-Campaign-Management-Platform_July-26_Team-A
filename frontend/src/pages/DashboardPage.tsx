@@ -1,65 +1,54 @@
-import DashboardShell from "../components/DashboardShell";
-
-const STATS = [
-  { label: "Connected accounts", value: "4", hint: "of 6 platforms" },
-  { label: "Team members", value: "6", hint: "3 roles active" },
-  { label: "Pending invites", value: "1", hint: "awaiting response" },
-  { label: "Setup progress", value: "75%", hint: "Milestone 1 checklist" },
-];
-
-const CHECKLIST = [
-  { status: "Done" as const, label: "Workspace & authentication configured" },
-  { status: "Done" as const, label: "Roles & permissions defined" },
-  { status: "In progress" as const, label: "Connect remaining social accounts" },
-  { status: "Pending" as const, label: "Invite remaining teammates" },
-];
-
-interface StatusPillProps {
-  status: "Done" | "In progress" | "Pending";
-}
-
-function StatusPill({ status }: StatusPillProps) {
-  const styles = {
-    Done: { background: "rgba(69,222,196,0.16)", color: "#1C8B77" },
-    "In progress": { background: "rgba(52,152,219,0.14)", color: "#2477A8" },
-    Pending: { background: "rgba(107,114,128,0.14)", color: "var(--ink-muted)" },
-  };
-  return (
-    <span
-      className="text-[11px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-full"
-      style={styles[status]}
-    >
-      {status}
-    </span>
-  );
-}
+/**
+ * DashboardPage.tsx — Generic /dashboard redirector
+ *
+ * If someone lands on /dashboard directly (bookmarked link, browser back button,
+ * or legacy navigation), this page reads their role and router.replace()s to the
+ * correct role-specific dashboard without showing any content.
+ */
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { getDashboardRoute } from "../utils/roleUtils";
 
 export default function DashboardPage() {
-  return (
-    <DashboardShell active="Dashboard">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        {STATS.map((s) => (
-          <div key={s.label} className="surface rounded-xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--ink-muted)" }}>
-              {s.label}
-            </p>
-            <p className="text-3xl font-semibold">{s.value}</p>
-            <p className="text-xs mt-1" style={{ color: "var(--ink-muted)" }}>{s.hint}</p>
-          </div>
-        ))}
-      </div>
+  const navigate = useNavigate();
 
-      <div className="surface rounded-xl p-5">
-        <p className="font-semibold mb-4">Setup checklist</p>
-        <div className="space-y-3">
-          {CHECKLIST.map((item) => (
-            <div key={item.label} className="flex items-center gap-3 text-sm">
-              <StatusPill status={item.status} />
-              <span>{item.label}</span>
-            </div>
-          ))}
-        </div>
+  useEffect(() => {
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    navigate(getDashboardRoute(), { replace: true });
+  }, [navigate]);
+
+  // Minimal loading state while the redirect fires
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "var(--bg-canvas)",
+        color: "var(--ink-muted)",
+        fontFamily: "var(--font-sans, sans-serif)",
+      }}
+    >
+      <div style={{ textAlign: "center" }}>
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            border: "3px solid var(--teal)",
+            borderTopColor: "transparent",
+            borderRadius: "50%",
+            animation: "spin 0.7s linear infinite",
+            margin: "0 auto 12px",
+          }}
+        />
+        <p style={{ fontSize: 13, opacity: 0.6 }}>Loading your workspace…</p>
       </div>
-    </DashboardShell>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
   );
 }
