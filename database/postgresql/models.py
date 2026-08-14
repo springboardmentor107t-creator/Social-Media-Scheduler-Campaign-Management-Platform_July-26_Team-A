@@ -2,7 +2,7 @@ import uuid
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, Text, UniqueConstraint, Enum, JSON
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Enum, JSON
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -67,6 +67,12 @@ class User(Base):
     back_populates="owner",
     cascade="all, delete-orphan"
 )
+
+    campaigns = relationship(
+        "Campaign",
+        back_populates="owner",
+        cascade="all, delete-orphan"
+    )
 
 class SocialAccount(Base):
     __tablename__ = "social_accounts"
@@ -270,6 +276,118 @@ class PublishingLog(Base):
         "SocialAccount",
         back_populates="publishing_logs"
     )
+
+class CampaignStatus(str, enum.Enum):
+    PLANNED = "planned"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    PAUSED = "paused"
+    CANCELLED = "cancelled"
+
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    status = Column(
+        Enum(
+            CampaignStatus,
+            name="campaign_status",
+            values_callable=lambda x: [e.value for e in x]
+        ),
+        default=CampaignStatus.PLANNED,
+        server_default="planned",
+        nullable=False,
+    )
+    objective = Column(String(255), nullable=True)
+    budget = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    owner = relationship("User", back_populates="campaigns")
+    campaign_contents = relationship(
+        "CampaignContent",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
+    performance_rows = relationship(
+        "CampaignPerformance",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
+    audience_growth_rows = relationship(
+        "AudienceGrowth",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
+
+class CampaignContent(Base):
+    __tablename__ = "campaign_contents"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    campaign_id = Column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    content_id = Column(PGUUID(as_uuid=True), ForeignKey("contents.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence = Column(Integer, nullable=True)
+    notes = Column(Text, nullable=True)
+
+    campaign = relationship("Campaign", back_populates="campaign_contents")
+    content = relationship("Content")
+
+class CampaignPerformance(Base):
+    __tablename__ = "campaign_performance"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    campaign_id = Column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
+    date = Column(DateTime(timezone=True), nullable=False)
+    impressions = Column(Integer, default=0, server_default="0", nullable=False)
+    reach = Column(Integer, default=0, server_default="0", nullable=False)
+    clicks = Column(Integer, default=0, server_default="0", nullable=False)
+    engagements = Column(Integer, default=0, server_default="0", nullable=False)
+    likes = Column(Integer, default=0, server_default="0", nullable=False)
+    comments = Column(Integer, default=0, server_default="0", nullable=False)
+    shares = Column(Integer, default=0, server_default="0", nullable=False)
+    conversions = Column(Integer, default=0, server_default="0", nullable=False)
+    cost = Column(Float, default=0.0, server_default="0", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    campaign = relationship("Campaign", back_populates="performance_rows")
+
+class ScheduledPostMetrics(Base):
+    __tablename__ = "scheduled_post_metrics"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    scheduled_post_id = Column(PGUUID(as_uuid=True), ForeignKey("scheduled_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    recorded_at = Column(DateTime(timezone=True), nullable=False)
+    views = Column(Integer, default=0, server_default="0", nullable=False)
+    likes = Column(Integer, default=0, server_default="0", nullable=False)
+    comments = Column(Integer, default=0, server_default="0", nullable=False)
+    shares = Column(Integer, default=0, server_default="0", nullable=False)
+    saves = Column(Integer, default=0, server_default="0", nullable=False)
+    clicks = Column(Integer, default=0, server_default="0", nullable=False)
+    ctr = Column(Float, default=0.0, server_default="0", nullable=False)
+    engagement_rate = Column(Float, default=0.0, server_default="0", nullable=False)
+    reach = Column(Integer, default=0, server_default="0", nullable=False)
+    impressions = Column(Integer, default=0, server_default="0", nullable=False)
+
+    scheduled_post = relationship("ScheduledPost")
+
+class AudienceGrowth(Base):
+    __tablename__ = "audience_growth"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    social_account_id = Column(PGUUID(as_uuid=True), ForeignKey("social_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    campaign_id = Column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="SET NULL"), nullable=True, index=True)
+    date = Column(DateTime(timezone=True), nullable=False)
+    followers = Column(Integer, default=0, server_default="0", nullable=False)
+    follower_change = Column(Integer, default=0, server_default="0", nullable=False)
+    audience_demographics = Column(JSON, nullable=True)
+
+    social_account = relationship("SocialAccount")
+    campaign = relationship("Campaign", back_populates="audience_growth_rows")
 
 
 class RoleReference(Base):
