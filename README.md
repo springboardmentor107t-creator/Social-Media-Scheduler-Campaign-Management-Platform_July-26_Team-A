@@ -243,3 +243,5 @@ npm run dev
 * **Project**: SocialPilot – Social Media Scheduler & Campaign Management Platform
 * **Team**: Team A
 * **License**: Open for educational and internal internship review.
+ 
+ 
