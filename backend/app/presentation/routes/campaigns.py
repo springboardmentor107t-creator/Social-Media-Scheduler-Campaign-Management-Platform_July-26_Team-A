@@ -14,8 +14,10 @@ from app.presentation.routes.notifications import broadcast_campaign_notificatio
 router = APIRouter(prefix="/api/campaigns", tags=["Campaigns & Scheduling"])
 
 class CampaignCreate(BaseModel):
-    name: str = Field(..., max_length=255)
+    name: Optional[str] = Field(default=None, max_length=255)
+    title: Optional[str] = Field(default=None, max_length=255)
     description: Optional[str] = None
+    objective: Optional[str] = None
     status: Optional[CampaignStatus] = CampaignStatus.DRAFT
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -26,7 +28,9 @@ class CampaignCreate(BaseModel):
 
 class CampaignUpdate(BaseModel):
     name: Optional[str] = None
+    title: Optional[str] = None
     description: Optional[str] = None
+    objective: Optional[str] = None
     status: Optional[CampaignStatus] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -51,10 +55,15 @@ def create_campaign(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new marketing/content campaign."""
+    campaign_title = schema.title or schema.name
+    if not campaign_title:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Campaign title is required")
+
     campaign = Campaign(
         owner_id=current_user.id,
-        name=schema.name,
+        title=campaign_title,
         description=schema.description,
+        objective=schema.objective,
         status=schema.status or CampaignStatus.DRAFT,
         start_date=schema.start_date,
         end_date=schema.end_date,

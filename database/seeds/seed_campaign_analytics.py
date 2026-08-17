@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from database.postgresql.connection import get_session
-from database.postgresql.models import Campaign, CampaignContent, CampaignPerformance, AudienceGrowth, Content, SocialAccount, User
+from database.postgresql.models import Campaign, CampaignContent, CampaignPerformance, AudienceGrowth, Content, SocialAccount, User, CampaignStatus
 
 
 def seed_campaign_analytics():
@@ -32,9 +32,13 @@ def seed_campaign_analytics():
                 description="A campaign to promote the spring product line across social media channels.",
                 start_date=datetime.utcnow(),
                 end_date=datetime.utcnow() + timedelta(days=30),
-                status="active",
+                status=CampaignStatus.ACTIVE,
                 objective="Increase brand awareness and generate lead conversions",
-                budget=8500.00,
+                budget="8500",
+                spent="$0",
+                target_audience="Consumers interested in spring product releases",
+                platforms=["instagram", "facebook"],
+                kpis={"target_impressions": 50000, "target_clicks": 2500},
             )
             session.add(campaign)
             session.flush()

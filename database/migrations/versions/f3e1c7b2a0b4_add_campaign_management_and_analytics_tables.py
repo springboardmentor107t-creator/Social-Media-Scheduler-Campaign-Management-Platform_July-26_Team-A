@@ -24,16 +24,20 @@ def upgrade() -> None:
         sa.Column('owner_id', UUID(as_uuid=True), nullable=False),
         sa.Column('title', sa.String(length=255), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('end_date', sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             'status',
-            sa.Enum('planned', 'active', 'completed', 'paused', 'cancelled', name='campaign_status'),
-            server_default='planned',
+            sa.Enum('draft', 'active', 'scheduled', 'completed', 'paused', 'cancelled', name='campaign_status'),
+            server_default='draft',
             nullable=False,
         ),
+        sa.Column('start_date', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('end_date', sa.DateTime(timezone=True), nullable=True),
+        sa.Column('budget', sa.String(length=50), nullable=True),
+        sa.Column('spent', sa.String(length=50), nullable=True),
+        sa.Column('target_audience', sa.String(length=255), nullable=True),
+        sa.Column('platforms', sa.JSON(), nullable=True),
+        sa.Column('kpis', sa.JSON(), nullable=True),
         sa.Column('objective', sa.String(length=255), nullable=True),
-        sa.Column('budget', sa.Float(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.ForeignKeyConstraint(['owner_id'], ['users.id'], ondelete='CASCADE'),
@@ -125,4 +129,4 @@ def downgrade() -> None:
     op.drop_table('campaign_contents')
     op.drop_index(op.f('ix_campaigns_owner_id'), table_name='campaigns')
     op.drop_table('campaigns')
-    sa.Enum('planned', 'active', 'completed', 'paused', 'cancelled', name='campaign_status').drop(op.get_bind(), checkfirst=True)
+    sa.Enum('draft', 'active', 'scheduled', 'completed', 'paused', 'cancelled', name='campaign_status').drop(op.get_bind(), checkfirst=True)

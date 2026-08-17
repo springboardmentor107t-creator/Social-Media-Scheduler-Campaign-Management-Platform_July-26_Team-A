@@ -4,7 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Enum, JSON
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, synonym
 from sqlalchemy.sql import func
 
 Base = declarative_base()
@@ -43,6 +43,7 @@ class CampaignStatus(str, enum.Enum):
     SCHEDULED = "scheduled"
     COMPLETED = "completed"
     PAUSED = "paused"
+    CANCELLED = "cancelled"
 
 class User(Base):
     __tablename__ = "users"
@@ -149,7 +150,8 @@ class Campaign(Base):
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    name = Column(String(255), nullable=False)
+    title = Column(String(255), nullable=False)
+    name = synonym("title")
     description = Column(Text, nullable=True)
     status = Column(
         Enum(CampaignStatus, name="campaign_status", values_callable=lambda x: [e.value for e in x]),
@@ -164,11 +166,27 @@ class Campaign(Base):
     target_audience = Column(String(255), nullable=True)
     platforms = Column(JSON, nullable=True)
     kpis = Column(JSON, nullable=True)
+    objective = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
-    owner = relationship("User", backref="campaigns")
+    owner = relationship("User", back_populates="campaigns")
     scheduled_posts = relationship("ScheduledPost", back_populates="campaign", cascade="all, delete-orphan")
+    campaign_contents = relationship(
+        "CampaignContent",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
+    performance_rows = relationship(
+        "CampaignPerformance",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
+    audience_growth_rows = relationship(
+        "AudienceGrowth",
+        back_populates="campaign",
+        cascade="all, delete-orphan"
+    )
 
 
 class ScheduledPost(Base):
@@ -321,54 +339,6 @@ class PublishingLog(Base):
     social_account = relationship(
         "SocialAccount",
         back_populates="publishing_logs"
-    )
-
-class CampaignStatus(str, enum.Enum):
-    PLANNED = "planned"
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    PAUSED = "paused"
-    CANCELLED = "cancelled"
-
-class Campaign(Base):
-    __tablename__ = "campaigns"
-
-    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
-    owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    title = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    start_date = Column(DateTime(timezone=True), nullable=True)
-    end_date = Column(DateTime(timezone=True), nullable=True)
-    status = Column(
-        Enum(
-            CampaignStatus,
-            name="campaign_status",
-            values_callable=lambda x: [e.value for e in x]
-        ),
-        default=CampaignStatus.PLANNED,
-        server_default="planned",
-        nullable=False,
-    )
-    objective = Column(String(255), nullable=True)
-    budget = Column(Float, nullable=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-
-    owner = relationship("User", back_populates="campaigns")
-    campaign_contents = relationship(
-        "CampaignContent",
-        back_populates="campaign",
-        cascade="all, delete-orphan"
-    )
-    performance_rows = relationship(
-        "CampaignPerformance",
-        back_populates="campaign",
-        cascade="all, delete-orphan"
-    )
-    audience_growth_rows = relationship(
-        "AudienceGrowth",
-        back_populates="campaign",
-        cascade="all, delete-orphan"
     )
 
 class CampaignContent(Base):
