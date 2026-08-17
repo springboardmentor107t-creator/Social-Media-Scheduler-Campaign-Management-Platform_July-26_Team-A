@@ -22,11 +22,11 @@ import { apiFetch } from "../../services/api";
 // ── Nav items ─────────────────────────────────────────────────────────────────
 const MARKETING_NAV: NavItem[] = [
   { label: "Dashboard",         href: "/dashboard/marketing" },
-  { label: "Campaigns",         href: "/dashboard/marketing" },
+  { label: "Campaigns",         href: "/dashboard/campaigns" },
   { label: "Approval Queue",    href: "/dashboard/marketing" },
   { label: "Shared Drafts",     href: "/dashboard/marketing" },
-  { label: "Analytics",         href: "/dashboard/marketing" },
-  { label: "Campaign Reports",  href: "/dashboard/marketing" },
+  { label: "Analytics",         href: "/dashboard/analytics" },
+  { label: "Campaign Reports",  href: "/dashboard/analytics" },
   { label: "Team",              href: "/dashboard/team" },
   { label: "Profile",           href: "/dashboard/profile" },
   { label: "Settings",          href: "/dashboard/settings" },

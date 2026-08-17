@@ -13,7 +13,11 @@ import BusinessPage from "../pages/dashboard/BusinessPage";
 import AdminPage from "../pages/dashboard/AdminPage";
 import CalendarPage from "../pages/dashboard/CalendarPage";
 import PreviewPage from "../pages/dashboard/PreviewPage";
+import CampaignsPage from "../pages/dashboard/CampaignsPage";
+import AnalyticsPage from "../pages/dashboard/AnalyticsPage";
 import CommandPalette from "../components/CommandPalette";
+
+import PostEditorPage from "../pages/dashboard/PostEditorPage";
 
 export default function AppRoutes() {
   return (
@@ -31,6 +35,8 @@ export default function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
 
         {/* Shared dashboard pages (accessible to all authenticated roles) */}
+        <Route path="/dashboard/campaigns" element={<CampaignsPage />} />
+        <Route path="/dashboard/analytics" element={<AnalyticsPage />} />
         <Route path="/dashboard/profile" element={<ProfilePage />} />
         <Route path="/dashboard/team" element={<TeamPage />} />
         <Route path="/dashboard/connect" element={<ConnectPage />} />
@@ -40,6 +46,9 @@ export default function AppRoutes() {
 
         {/* Role-specific dashboards (each protected by RoleGate internally) */}
         <Route path="/dashboard/creator"   element={<CreatorPage />} />
+        <Route path="/dashboard/creator/new" element={<PostEditorPage />} />
+        <Route path="/dashboard/creator/:id/edit" element={<PostEditorPage />} />
+        <Route path="/dashboard/creator/duplicate/:id" element={<PostEditorPage />} />
         <Route path="/dashboard/marketing" element={<MarketingPage />} />
         <Route path="/dashboard/business"  element={<BusinessPage />} />
         <Route path="/dashboard/admin"     element={<AdminPage />} />

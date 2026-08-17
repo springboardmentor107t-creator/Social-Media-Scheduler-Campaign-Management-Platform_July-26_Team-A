@@ -17,7 +17,7 @@ def _get_database_url() -> str:
 
     user = os.getenv("POSTGRES_USER", "socialpilot_user")
     password = os.getenv("POSTGRES_PASSWORD", "socialpilot_password")
-    host = os.getenv("POSTGRES_HOST", "postgres")
+    host = os.getenv("POSTGRES_HOST", "127.0.0.1")
     port = os.getenv("POSTGRES_PORT", "5432")
     database = os.getenv("POSTGRES_DB", "socialpilot_db")
     return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"

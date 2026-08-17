@@ -49,3 +49,5 @@ def decode_token(token: str) -> Dict[str, Any]:
         return payload
     except JWTError:
         return {}
+    """When it is used: Used by backend authentication middlewares/dependencies to verify 
+    that a client's incoming API request contains a valid session token."""

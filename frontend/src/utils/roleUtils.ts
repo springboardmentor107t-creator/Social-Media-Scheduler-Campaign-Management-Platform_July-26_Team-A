@@ -46,6 +46,16 @@ export const DISPLAY_TO_ROUTE_KEY: Record<string, FrontendRoleKey> = {
   "Administrator":   "admin",
 };
 
+// ─── Display label → backend auth role string ────────────────────────────────
+// Used at signup to send the correct role to POST /api/auth/register.
+// "Business User" and "Marketing Team" both collapse to "manager" on the backend.
+export const DISPLAY_TO_AUTH_ROLE: Record<string, string> = {
+  "Content Creator": "user",
+  "Marketing Team":  "manager",
+  "Business User":   "manager",
+  "Administrator":   "admin",
+};
+
 // ─── Route key → full dashboard path ─────────────────────────────────────────
 export const ROLE_DASHBOARD_PATHS: Record<FrontendRoleKey, string> = {
   creator:   "/dashboard/creator",

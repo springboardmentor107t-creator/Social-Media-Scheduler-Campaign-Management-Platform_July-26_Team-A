@@ -25,6 +25,8 @@ export interface NavItem {
 // Default nav — used by non-role-specific pages (Profile, Team, Connect, Settings)
 const DEFAULT_NAV: NavItem[] = [
   { label: "Dashboard",        href: "/dashboard" },
+  { label: "Campaigns",        href: "/dashboard/campaigns" },
+  { label: "Analytics",        href: "/dashboard/analytics" },
   { label: "Profile",          href: "/dashboard/profile" },
   { label: "Connect Accounts", href: "/dashboard/connect" },
   { label: "Team",             href: "/dashboard/team" },
