@@ -2,11 +2,11 @@
 
 A centralized social media management platform designed to help individuals, businesses, content creators, and marketing teams efficiently manage their social media presence.
 
-## 🚀 Milestone 1 Status Dashboard
+## 🚀 Milestone 3 Status Dashboard
 
-Below is the live status dashboard for the **Milestone 1** deliverables. It showcases completed items (green glowing LEDs) and pending integration stubs (orange blinking LEDs).
+Below is the live status dashboard for the **Milestone 3** deliverables. It showcases completed items (green glowing LEDs) and full backend & database integrations.
 
-![Milestone 1 Status Dashboard](./docs/milestone1_status.svg)
+![Milestone 3 Status Dashboard](./docs/milestone1_status.svg)
 
 <details>
 <summary><b>📊 Expand for Detailed Deliverables Breakdown</b></summary>
