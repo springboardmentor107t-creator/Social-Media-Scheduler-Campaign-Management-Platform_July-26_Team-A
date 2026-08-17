@@ -27,12 +27,14 @@ import { getAuditLog, type AuditEntry as MockAuditEntry, type AuditActionType } 
 // ── Nav items ─────────────────────────────────────────────────────────────────
 const ADMIN_NAV: NavItem[] = [
   { label: "Dashboard",       href: "/dashboard/admin" },
+  { label: "Campaigns",       href: "/dashboard/campaigns" },
+  { label: "Analytics",       href: "/dashboard/analytics" },
   { label: "User Management", href: "/dashboard/team" },
   { label: "Platform Health", href: "/dashboard/admin" },
   { label: "Security",        href: "/dashboard/admin" },
   { label: "Audit Log",       href: "/dashboard/admin" },
   { label: "Publishing Queue",href: "/dashboard/admin" },
-  { label: "Reports",         href: "/dashboard/admin" },
+  { label: "Reports",         href: "/dashboard/analytics" },
   { label: "API Config",      href: "/dashboard/admin" },
   { label: "Settings",        href: "/dashboard/settings" },
 ];

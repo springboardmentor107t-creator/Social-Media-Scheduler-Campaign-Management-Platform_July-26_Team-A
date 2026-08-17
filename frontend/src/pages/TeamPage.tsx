@@ -285,10 +285,17 @@ export default function TeamPage() {
         {/* Search & Filters */}
         <div className="surface p-4 rounded-xl flex flex-col md:flex-row gap-4 items-center shadow-sm">
           <div className="relative w-full md:flex-1">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10">
               <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
             </svg>
-            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by name or email…" className="input-field pl-10 py-2.5 text-sm" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email…"
+              className="input-field py-2.5 text-sm"
+              style={{ paddingLeft: "2.5rem" }}
+            />
           </div>
           <div className="flex flex-wrap gap-3 w-full md:w-auto">
             <select value={selectedRoleFilter} onChange={(e) => setSelectedRoleFilter(e.target.value)} className="input-field py-2.5 text-xs font-medium">

@@ -37,6 +37,13 @@ class ContentStatus(str, enum.Enum):
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
 
+class CampaignStatus(str, enum.Enum):
+    DRAFT = "draft"
+    ACTIVE = "active"
+    SCHEDULED = "scheduled"
+    COMPLETED = "completed"
+    PAUSED = "paused"
+
 class User(Base):
     __tablename__ = "users"
 
@@ -137,6 +144,33 @@ class Content(Base):
         cascade="all, delete-orphan"
     )
 
+class Campaign(Base):
+    __tablename__ = "campaigns"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
+    owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(
+        Enum(CampaignStatus, name="campaign_status", values_callable=lambda x: [e.value for e in x]),
+        default=CampaignStatus.DRAFT,
+        server_default="draft",
+        nullable=False
+    )
+    start_date = Column(DateTime(timezone=True), nullable=True)
+    end_date = Column(DateTime(timezone=True), nullable=True)
+    budget = Column(String(50), nullable=True)
+    spent = Column(String(50), nullable=True)
+    target_audience = Column(String(255), nullable=True)
+    platforms = Column(JSON, nullable=True)
+    kpis = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    owner = relationship("User", backref="campaigns")
+    scheduled_posts = relationship("ScheduledPost", back_populates="campaign", cascade="all, delete-orphan")
+
+
 class ScheduledPost(Base):
     __tablename__ = "scheduled_posts"
 
@@ -145,6 +179,13 @@ class ScheduledPost(Base):
         primary_key=True,
         default=uuid.uuid4,
         nullable=False
+    )
+
+    campaign_id = Column(
+        PGUUID(as_uuid=True),
+        ForeignKey("campaigns.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
     )
 
     content_id = Column(
@@ -198,6 +239,11 @@ class ScheduledPost(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False
+    )
+
+    campaign = relationship(
+        "Campaign",
+        back_populates="scheduled_posts"
     )
 
     content = relationship(

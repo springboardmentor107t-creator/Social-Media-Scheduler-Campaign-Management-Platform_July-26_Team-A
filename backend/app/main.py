@@ -11,8 +11,9 @@ from fastapi.responses import JSONResponse
 from pymongo import MongoClient
 from sqlalchemy import create_engine, text
 
-from app.presentation.routes import history, auth, users, content
-from app.api import youtube
+from app.presentation.routes import history, auth, users, content, campaigns, analytics, notifications
+from app.api import youtube, facebook
+from app.models.facebook import FacebookAccount, FacebookPage
 from database.postgresql.connection import init_db
 from database.mongodb.connection import init_mongo_indexes
 from app.presentation.dependencies.auth import RBACException
@@ -30,10 +31,12 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-        "http://localhost:5174",      # Vite fallback port when 5173 is busy
+        "http://localhost:5174",
         "http://127.0.0.1:5174",
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
     ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,15 +54,33 @@ async def rbac_exception_handler(request: Request, exc: RBACException):
         }
     )
 
+# Exception handler for unexpected server errors to maintain CORS headers on 500
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal Server Error: {str(exc)}"}
+    )
+
 # Register routes
 app.include_router(history.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(content.router)
+app.include_router(content.router, prefix="/api")
+app.include_router(campaigns.router)
+app.include_router(analytics.router)
 app.include_router(youtube.router)
+app.include_router(facebook.router)
+app.include_router(notifications.router)
 
 @app.on_event("startup")
 async def startup_db():
+    try:
+        init_db()
+        print("PostgreSQL tables initialized successfully.")
+    except Exception as e:
+        print(f"Failed to initialize PostgreSQL tables: {e}")
     try:
         await init_mongo_indexes()
         print("MongoDB indexes initialized successfully.")

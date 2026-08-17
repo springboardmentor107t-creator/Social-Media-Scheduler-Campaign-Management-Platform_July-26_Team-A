@@ -9,6 +9,7 @@
  *   - Bulk actions on My Content table (select-all, bulk delete, bulk reschedule)
  */
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardShell, { type NavItem } from "../../components/DashboardShell";
 import RoleGate from "../../components/RoleGate";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -20,10 +21,11 @@ import { apiFetch } from "../../services/api";
 // ── Nav items for Content Creator ─────────────────────────────────────────────
 const CREATOR_NAV: NavItem[] = [
   { label: "My Dashboard",      href: "/dashboard/creator" },
+  { label: "Campaigns",         href: "/dashboard/campaigns" },
+  { label: "Analytics",         href: "/dashboard/analytics" },
   { label: "My Content",        href: "/dashboard/creator" },
   { label: "Drafts",            href: "/dashboard/creator" },
   { label: "Media Library",     href: "/dashboard/creator" },
-  { label: "Analytics",         href: "/dashboard/creator" },
   { label: "Publishing History",href: "/dashboard/creator" },
   { label: "Profile",           href: "/dashboard/profile" },
   { label: "Connect Accounts",  href: "/dashboard/connect" },
@@ -150,13 +152,14 @@ function SectionCard({ title, children }: { title: string; children: React.React
 
 // ── Page component ─────────────────────────────────────────────────────────────
 export default function CreatorPage() {
+  const navigate = useNavigate();
   const [roleDesc, setRoleDesc] = useState<string>("Individual users who create, manage, and publish content.");
   const [statsLoading, setStatsLoading] = useState(true);
   const [toast, setToast] = useState("");
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [contentRows, setContentRows] = useState(MOCK_CONTENT);
+  const [contentRows, setContentRows] = useState<ContentRow[]>(MOCK_CONTENT);
   const [bulkRescheduleDate, setBulkRescheduleDate] = useState("");
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [confirmBulkReschedule, setConfirmBulkReschedule] = useState(false);
@@ -166,11 +169,49 @@ export default function CreatorPage() {
     setTimeout(() => setToast(""), 2800);
   };
 
+  const fetchContents = () => {
+    apiFetch<{ total: number; items: any[] }>("/api/content")
+      .then((data) => {
+        if (data && data.items && data.items.length > 0) {
+          const formatted: ContentRow[] = data.items.map((item) => ({
+            id: item.id,
+            title: item.title,
+            platform: item.platform || "Unassigned",
+            status: (item.display_status || "Draft") as PostStatus,
+            scheduledTime: item.scheduledTime || "—",
+          }));
+          setContentRows(formatted);
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
+    fetchContents();
     apiFetch<{ description: string }>("/api/roles/Content%20Creator")
       .then((d) => setRoleDesc(d.description))
       .catch(() => {});
   }, []);
+
+  const handleDeleteSingle = async (id: string) => {
+    try {
+      await apiFetch(`/api/content/${id}`, { method: "DELETE" });
+      setContentRows((prev) => prev.filter((r) => r.id !== id));
+      showToast("Post deleted successfully.");
+    } catch (err: any) {
+      showToast(`Delete failed: ${err.message}`);
+    }
+  };
+
+  const handleDuplicateSingle = async (id: string) => {
+    try {
+      const dup = await apiFetch<any>(`/api/content/${id}/duplicate`, { method: "POST" });
+      showToast(`Duplicated into new draft: ${dup.title}`);
+      fetchContents();
+    } catch (err: any) {
+      showToast(`Duplicate failed: ${err.message}`);
+    }
+  };
 
   // Simulate ≥500ms skeleton for stat cards
   useEffect(() => {
@@ -239,7 +280,7 @@ export default function CreatorPage() {
             <button
               id="creator-new-post-btn"
               className="btn-primary-teal text-xs py-2 px-4"
-              onClick={() => showToast("Post creator coming soon — stay tuned!")}
+              onClick={() => navigate("/dashboard/creator/new")}
             >
               + New Post
             </button>
@@ -305,7 +346,7 @@ export default function CreatorPage() {
                         title="No posts yet"
                         description="Create your first post to get started with scheduling."
                         actionLabel="Create your first post"
-                        onAction={() => showToast("Post creator coming soon — stay tuned!")}
+                        onAction={() => navigate("/dashboard/creator/new")}
                       />
                     </td>
                   </tr>
@@ -325,9 +366,27 @@ export default function CreatorPage() {
                     <td className="py-3.5 px-2 text-xs" style={{ color: "var(--ink-muted)" }}>{row.scheduledTime}</td>
                     <td className="py-3.5 px-2">
                       <div className="flex items-center gap-2">
-                        <button className="text-xs font-medium px-2 py-1 rounded" style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.08)" }}>Edit</button>
-                        <button className="text-xs font-medium px-2 py-1 rounded" style={{ color: "var(--ink-muted)", background: "rgba(107,114,128,0.08)" }}>Duplicate</button>
-                        <button className="text-xs font-medium px-2 py-1 rounded" style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}>Delete</button>
+                        <button
+                          onClick={() => navigate(`/dashboard/creator/${row.id}/edit`)}
+                          className="text-xs font-medium px-2 py-1 rounded transition-colors"
+                          style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.08)" }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDuplicateSingle(row.id)}
+                          className="text-xs font-medium px-2 py-1 rounded transition-colors"
+                          style={{ color: "var(--ink-muted)", background: "rgba(107,114,128,0.08)" }}
+                        >
+                          Duplicate
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSingle(row.id)}
+                          className="text-xs font-medium px-2 py-1 rounded transition-colors"
+                          style={{ color: "#ef4444", background: "rgba(239,68,68,0.08)" }}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>

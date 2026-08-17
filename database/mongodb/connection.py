@@ -26,3 +26,6 @@ async def init_mongo_indexes() -> None:
     db = await get_mongo_db()
     await db.users.create_index("email", unique=True)
     await db.social_accounts.create_index([("user_id", 1), ("provider", 1), ("provider_account_id", 1)], unique=True)
+    # Notification indexes for fast queries
+    await db.notifications.create_index("target_user_id")
+    await db.notifications.create_index([("created_at", -1)])

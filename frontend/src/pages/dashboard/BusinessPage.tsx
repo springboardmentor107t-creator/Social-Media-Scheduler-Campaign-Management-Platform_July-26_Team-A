@@ -23,9 +23,9 @@ import { apiFetch } from "../../services/api";
 // ── Nav items ─────────────────────────────────────────────────────────────────
 const BUSINESS_NAV: NavItem[] = [
   { label: "Dashboard",        href: "/dashboard/business" },
-  { label: "Brand Overview",   href: "/dashboard/business" },
+  { label: "Campaigns",        href: "/dashboard/campaigns" },
+  { label: "Analytics",        href: "/dashboard/analytics" },
   { label: "Final Approval",   href: "/dashboard/business" },
-  { label: "Analytics",        href: "/dashboard/business" },
   { label: "Team",             href: "/dashboard/team" },
   { label: "Integrations",     href: "/dashboard/connect" },
   { label: "Profile",          href: "/dashboard/profile" },

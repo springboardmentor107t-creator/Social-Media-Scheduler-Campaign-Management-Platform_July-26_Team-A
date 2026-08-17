@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import MapLoader from "./MapLoader";
 import ThemeToggle from "./ThemeToggle";
 import { setTokens, apiFetch } from "../services/api";
-import { getDashboardRoute, storeAuthRoleAsDisplayRole, DISPLAY_TO_ROUTE_KEY, ROLE_DASHBOARD_PATHS } from "../utils/roleUtils";
+import { getDashboardRoute, storeAuthRoleAsDisplayRole, DISPLAY_TO_ROUTE_KEY, DISPLAY_TO_AUTH_ROLE, ROLE_DASHBOARD_PATHS } from "../utils/roleUtils";
 
 const ROLES = ["Content Creator", "Marketing Team", "Business User", "Administrator"];
 
@@ -116,6 +116,7 @@ export default function AuthScreen({ initialMode = "login" }: AuthScreenProps) {
           password: passwordVal,
           full_name: nameVal,
           username: emailVal.split("@")[0],
+          role: DISPLAY_TO_AUTH_ROLE[selectedRole] ?? "user",
         }),
       });
 
