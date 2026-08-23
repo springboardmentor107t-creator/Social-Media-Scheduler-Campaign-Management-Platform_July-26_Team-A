@@ -116,7 +116,7 @@ SocialPilot empowers marketing teams, agency managers, and content creators to p
 
 | Frontend | Backend | Database | DevOps & Tooling |
 | :--- | :--- | :--- | :--- |
-| • React 18 / Vite<br>• TypeScript<br>• Tailwind CSS (v4)<br>• React Router v6<br>• Lucide / Custom SVG Icons | • FastAPI<br>• Python 3.11+<br>• SQLAlchemy ORM<br>• Alembic Migrations<br>• Pydantic v2<br>• JWT Authentication | • PostgreSQL 15+<br>• MongoDB 6.0+ | • Docker & Docker Compose<br>• Git & GitHub<br>• Uvicorn ASGI Server |
+| • React 18 / Vite<br>• TypeScript<br>• Tailwind CSS (v4)<br>• React Router v6<br>• Lucide / Custom SVG Icons | • FastAPI<br>• Python 3.11+<br>• SQLAlchemy ORM<br>• Alembic Migrations<br>• Pydantic v2<br>• JWT Authentication | • PostgreSQL 15+<br>• MongoDB 6.0+<br>• Redis 7 | • Docker & Docker Compose<br>• Git & GitHub<br>• Uvicorn ASGI Server |
 
 ---
 
@@ -143,7 +143,7 @@ SocialPilot follows **Clean Architecture** principles within a modular framework
 
 ```
 SocialPilot/
-├── docker-compose.yml               # Multi-container orchestration (PostgreSQL + MongoDB)
+├── docker-compose.yml               # PostgreSQL + MongoDB + Redis orchestration
 ├── README.md                        # Documentation & Status Dashboard
 ├── docs/
 │   ├── milestone1_status.svg        # Live animated status dashboard graphic
@@ -151,7 +151,10 @@ SocialPilot/
 ├── database/
 │   ├── postgresql/                  # SQLAlchemy models, engines, connection pools, seeds
 │   ├── mongodb/                     # NoSQL client & collections setup
-│   └── migrations/                  # Alembic migration scripts and env.py
+│   ├── redis/                       # Redis client and cache connection settings
+│   ├── migrations/                  # Alembic migration scripts and env.py
+│   ├── backup.ps1                   # PostgreSQL and MongoDB backup script
+│   └── restore-test.ps1             # Isolated backup recovery verification
 ├── backend/                         # FastAPI Application (Clean Architecture)
 │   ├── app/
 │   │   ├── main.py                  # FastAPI entrypoint & middleware configuration
@@ -172,6 +175,211 @@ SocialPilot/
 
 ---
 
+## Database Architecture
+
+SocialPilot uses PostgreSQL for transactional application data, MongoDB for notification and flexible document data, and Redis for operational caching and coordination. PostgreSQL and MongoDB run with persistent Docker volumes, while Redis uses AOF persistence.
+
+### Complete PostgreSQL ER Diagram
+
+```mermaid
+erDiagram
+  USERS {
+    uuid id PK
+    string email UK
+    string username UK
+    string full_name
+    string password_hash
+    boolean is_active
+    enum role
+    string timezone
+    json notification_preferences
+    timestamp created_at
+    timestamp updated_at
+  }
+  SOCIAL_ACCOUNTS {
+    uuid id PK
+    uuid user_id FK
+    string provider
+    string provider_account_id
+    string account_name
+    text access_token
+    text refresh_token
+    boolean is_active
+    timestamp last_sync_time
+  }
+  FACEBOOK_ACCOUNTS {
+    uuid id PK
+    uuid user_id FK
+    string facebook_id
+    string name
+    string email
+    text access_token
+    timestamp expires_at
+  }
+  FACEBOOK_PAGES {
+    uuid id PK
+    uuid facebook_account_id FK
+    string page_id
+    string page_name
+    text page_access_token
+    string category
+  }
+  YOUTUBE_ACCOUNTS {
+    uuid id PK
+    uuid user_id FK
+    string channel_id
+    string channel_name
+    string email
+    text access_token
+    text refresh_token
+    timestamp expires_at
+  }
+  CONTENTS {
+    uuid id PK
+    uuid owner_id FK
+    string title
+    text body
+    json media_urls
+    enum content_type
+    enum status
+    boolean is_approved
+    timestamp created_at
+  }
+  CAMPAIGNS {
+    uuid id PK
+    uuid owner_id FK
+    string title
+    text description
+    enum status
+    timestamp start_date
+    timestamp end_date
+    string budget
+    string spent
+    json platforms
+    json kpis
+    string objective
+  }
+  CAMPAIGN_CONTENTS {
+    uuid id PK
+    uuid campaign_id FK
+    uuid content_id FK
+    integer sequence
+    text notes
+  }
+  SCHEDULED_POSTS {
+    uuid id PK
+    uuid campaign_id FK
+    uuid content_id FK
+    uuid social_account_id FK
+    uuid parent_scheduled_post_id FK
+    timestamp scheduled_time
+    boolean is_recurring
+    string recurrence_rule
+    enum status
+    timestamp created_at
+    timestamp updated_at
+  }
+  PUBLISHING_LOGS {
+    uuid id PK
+    uuid scheduled_post_id FK
+    uuid social_account_id FK
+    enum status
+    text error_message
+    timestamp published_at
+  }
+  CAMPAIGN_PERFORMANCE {
+    uuid id PK
+    uuid campaign_id FK
+    timestamp date
+    integer impressions
+    integer reach
+    integer clicks
+    integer engagements
+    integer likes
+    integer comments
+    integer shares
+    integer conversions
+    float cost
+  }
+  SCHEDULED_POST_METRICS {
+    uuid id PK
+    uuid scheduled_post_id FK
+    timestamp recorded_at
+    integer views
+    integer likes
+    integer comments
+    integer shares
+    integer saves
+    integer clicks
+    float ctr
+    float engagement_rate
+    integer reach
+    integer impressions
+  }
+  AUDIENCE_GROWTH {
+    uuid id PK
+    uuid social_account_id FK
+    uuid campaign_id FK
+    timestamp date
+    integer followers
+    integer follower_change
+    json audience_demographics
+  }
+  ROLE_REFERENCE {
+    uuid id PK
+    string role_label UK
+    text description
+    json key_responsibilities
+    string maps_to_auth_role
+  }
+
+  USERS ||--o{ SOCIAL_ACCOUNTS : owns
+  USERS ||--o{ FACEBOOK_ACCOUNTS : connects
+  FACEBOOK_ACCOUNTS ||--o{ FACEBOOK_PAGES : contains
+  USERS ||--o{ YOUTUBE_ACCOUNTS : connects
+  USERS ||--o{ CONTENTS : creates
+  USERS ||--o{ CAMPAIGNS : owns
+  CAMPAIGNS ||--o{ CAMPAIGN_CONTENTS : includes
+  CONTENTS ||--o{ CAMPAIGN_CONTENTS : assigned_to
+  CAMPAIGNS ||--o{ SCHEDULED_POSTS : schedules
+  CONTENTS ||--o{ SCHEDULED_POSTS : published_as
+  SOCIAL_ACCOUNTS ||--o{ SCHEDULED_POSTS : publishes_to
+  SCHEDULED_POSTS ||--o{ SCHEDULED_POSTS : recurs_from
+  SCHEDULED_POSTS ||--o{ PUBLISHING_LOGS : records
+  SOCIAL_ACCOUNTS ||--o{ PUBLISHING_LOGS : delivers_via
+  CAMPAIGNS ||--o{ CAMPAIGN_PERFORMANCE : measures
+  SCHEDULED_POSTS ||--o{ SCHEDULED_POST_METRICS : measures
+  SOCIAL_ACCOUNTS ||--o{ AUDIENCE_GROWTH : tracks
+  CAMPAIGNS |o--o{ AUDIENCE_GROWTH : attributes
+```
+
+### MongoDB, Redis, and Performance
+
+- **MongoDB collections:** `notifications`, `users`, and `social_accounts`. Notifications use compound indexes for targeted or broadcast filtering and newest-first retrieval. User email and social account provider identifiers are unique-indexed.
+- **Redis:** Redis 7 supports cache and coordination workloads with AOF persistence, password authentication, bounded connection timeouts, and health checks.
+- **PostgreSQL indexes:** Composite indexes cover content feeds, pending scheduled posts, campaign ownership/status, and campaign/account time-series analytics. They are defined in migration `b7c8d9e0f1a2`.
+
+### Database Operations and Validation
+
+```bash
+docker compose up -d --build
+docker compose exec backend python -m alembic -c /app/database/migrations/alembic.ini upgrade head
+curl http://127.0.0.1:8000/api/health
+docker compose exec backend pytest -q /app/tests
+```
+
+The verified environment reports PostgreSQL, MongoDB, and Redis as connected and migration head `c8d9e0f1a2b3`. All 28 backend tests pass. Data-integrity checks found zero orphan records; populated PostgreSQL and MongoDB backup recovery passed; database restart persistence passed; and database ports are bound to localhost in Docker Compose.
+
+PowerShell backup and isolated recovery verification:
+
+```powershell
+$env:DATABASE_URL="postgresql+psycopg://socialpilot_user:socialpilot_password@localhost:5432/socialpilot_db"
+$env:MONGODB_URL="mongodb://admin:admin_password@localhost:27017/socialpilot_db?authSource=admin"
+.\database\backup.ps1
+.\database\restore-test.ps1 -BackupDirectory .\backups\<timestamp> `
+  -RecoveryMongoUrl "mongodb://admin:admin_password@localhost:27017/socialpilot_recovery_test?authSource=admin"
+```
+
 ## ⚙ Setup Instructions
 
 ### 1. Clone Repository & Checkout Branch
@@ -183,8 +391,8 @@ git checkout Milestone-3
 
 ### 2. Start Database Services (Docker)
 ```bash
-# Launch PostgreSQL and MongoDB containers
-docker compose up -d postgres mongodb
+# Launch PostgreSQL, MongoDB, and Redis containers
+docker compose up -d postgres mongodb redis
 ```
 
 ### 3. Backend Setup & Alembic Migrations
@@ -223,6 +431,25 @@ npm install
 npm run dev
 ```
 * **Frontend App Base**: `http://localhost:5173`
+
+### 5. Database Operations and Verification
+```bash
+# Apply the production indexes and verify migration state
+python -m alembic -c ../database/migrations/alembic.ini upgrade head
+docker compose ps
+curl http://127.0.0.1:8000/api/health
+
+# Create a timestamped PostgreSQL and MongoDB backup (PowerShell)
+$env:DATABASE_URL="postgresql+psycopg://socialpilot_user:socialpilot_password@localhost:5432/socialpilot_db"
+$env:MONGODB_URL="mongodb://admin:admin_password@localhost:27017/socialpilot_db?authSource=admin"
+.\database\backup.ps1
+
+# Restore into isolated PostgreSQL and MongoDB recovery targets
+.\database\restore-test.ps1 -BackupDirectory .\backups\<timestamp> `
+  -RecoveryMongoUrl "mongodb://admin:admin_password@localhost:27017/socialpilot_recovery_test?authSource=admin"
+```
+
+The `/api/health` response must report `connected` for PostgreSQL, MongoDB, and Redis. For a basic stability check, run the backend tests after installing `backend/requirements.txt`; for query performance, inspect PostgreSQL plans with `EXPLAIN (ANALYZE, BUFFERS)` for content feeds, pending scheduled posts, campaign reports, and time-series analytics. The composite indexes for those paths are applied by migration `b7c8d9e0f1a2`.
 
 ---
 

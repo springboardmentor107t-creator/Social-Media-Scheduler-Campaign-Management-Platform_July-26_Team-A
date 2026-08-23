@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from database.postgresql.connection import get_db
 from database.postgresql.models import (
@@ -17,7 +17,7 @@ from database.postgresql.models import (
     User,
     UserRole,
 )
-from app.presentation.dependencies.auth import get_current_user, require_min_role, require_owner_or_role
+from app.presentation.dependencies.auth import RBACException, get_current_user, require_min_role, require_owner_or_role
 
 router = APIRouter(tags=["Content & Scheduling"])
 
@@ -80,6 +80,7 @@ class ScheduledPostUpdate(BaseModel):
 def _serialize_content(content: Content, db: Session) -> dict:
     scheduled_posts = (
         db.query(ScheduledPost)
+        .options(joinedload(ScheduledPost.social_account))
         .filter(ScheduledPost.content_id == content.id)
         .all()
     )
@@ -90,7 +91,7 @@ def _serialize_content(content: Content, db: Session) -> dict:
     primary_status = content.status.value if hasattr(content.status, "value") else str(content.status)
 
     for sp in scheduled_posts:
-        account = db.query(SocialAccount).filter(SocialAccount.id == sp.social_account_id).first()
+        account = sp.social_account
         prov_name = account.provider.capitalize() if account else "Social"
         providers.add(prov_name)
         if latest_scheduled_time is None or sp.scheduled_time > latest_scheduled_time:
@@ -297,7 +298,11 @@ def delete_content(
 
     user_role_val = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
     if content.owner_id != current_user.id and user_role_val not in ("admin", "manager"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this content")
+        raise RBACException(
+            detail="Insufficient permissions",
+            required_role="Owner or manager or higher",
+            your_role=user_role_val,
+        )
 
     db.delete(content)
     db.commit()

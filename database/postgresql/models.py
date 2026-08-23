@@ -2,7 +2,7 @@ import uuid
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Enum, JSON
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, Enum, JSON, Index
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import declarative_base, relationship, synonym
 from sqlalchemy.sql import func
@@ -117,6 +117,7 @@ class SocialAccount(Base):
 
 class Content(Base):
     __tablename__ = "contents"
+    __table_args__ = (Index("ix_contents_owner_created_at", "owner_id", "created_at"),)
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -147,6 +148,7 @@ class Content(Base):
 
 class Campaign(Base):
     __tablename__ = "campaigns"
+    __table_args__ = (Index("ix_campaigns_owner_status", "owner_id", "status"),)
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     owner_id = Column(PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -191,6 +193,10 @@ class Campaign(Base):
 
 class ScheduledPost(Base):
     __tablename__ = "scheduled_posts"
+    __table_args__ = (
+        Index("ix_scheduled_posts_status_time", "status", "scheduled_time"),
+        Index("ix_scheduled_posts_content_status", "content_id", "status"),
+    )
 
     id = Column(
         PGUUID(as_uuid=True),
@@ -355,6 +361,7 @@ class CampaignContent(Base):
 
 class CampaignPerformance(Base):
     __tablename__ = "campaign_performance"
+    __table_args__ = (Index("ix_campaign_performance_campaign_date", "campaign_id", "date"),)
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     campaign_id = Column(PGUUID(as_uuid=True), ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -374,6 +381,7 @@ class CampaignPerformance(Base):
 
 class ScheduledPostMetrics(Base):
     __tablename__ = "scheduled_post_metrics"
+    __table_args__ = (Index("ix_scheduled_post_metrics_post_recorded", "scheduled_post_id", "recorded_at"),)
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     scheduled_post_id = Column(PGUUID(as_uuid=True), ForeignKey("scheduled_posts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -393,6 +401,10 @@ class ScheduledPostMetrics(Base):
 
 class AudienceGrowth(Base):
     __tablename__ = "audience_growth"
+    __table_args__ = (
+        Index("ix_audience_growth_account_date", "social_account_id", "date"),
+        Index("ix_audience_growth_campaign_date", "campaign_id", "date"),
+    )
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, nullable=False)
     social_account_id = Column(PGUUID(as_uuid=True), ForeignKey("social_accounts.id", ondelete="CASCADE"), nullable=False, index=True)

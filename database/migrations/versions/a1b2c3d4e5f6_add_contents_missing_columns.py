@@ -17,19 +17,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    content_type_enum = sa.Enum('text', 'image', 'video', 'carousel', name='content_type')
-    content_status_enum = sa.Enum('draft', 'pending_approval', 'approved', name='content_status')
-    content_type_enum.create(op.get_bind(), checkfirst=True)
-    content_status_enum.create(op.get_bind(), checkfirst=True)
-
-    op.add_column('contents', sa.Column('body', sa.Text(), nullable=True))
-    op.add_column('contents', sa.Column('media_urls', sa.JSON(), nullable=True))
-    op.add_column('contents', sa.Column('content_type', sa.Enum('text', 'image', 'video', 'carousel', name='content_type'), server_default='text', nullable=False))
-    op.add_column('contents', sa.Column('status', sa.Enum('draft', 'pending_approval', 'approved', name='content_status'), server_default='draft', nullable=False))
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column('contents', 'status')
-    op.drop_column('contents', 'content_type')
-    op.drop_column('contents', 'media_urls')
-    op.drop_column('contents', 'body')
+    pass

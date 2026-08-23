@@ -17,16 +17,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Explicitly create the Postgres Enum type
-    user_role_enum = sa.Enum('admin', 'manager', 'user', name='user_role')
-    user_role_enum.create(op.get_bind(), checkfirst=True)
-
-    content_type_enum = sa.Enum('text', 'image', 'video', 'carousel', name='content_type')
-    content_type_enum.create(op.get_bind(), checkfirst=True)
-
-    content_status_enum = sa.Enum('draft', 'pending_approval', 'approved', name='content_status')
-    content_status_enum.create(op.get_bind(), checkfirst=True)
-
     op.create_table('contents',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('owner_id', sa.UUID(), nullable=False),
@@ -41,6 +31,8 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     
+    user_role_enum = sa.Enum('admin', 'manager', 'user', name='user_role')
+    user_role_enum.create(op.get_bind(), checkfirst=True)
     op.add_column('users', sa.Column('role', sa.Enum('admin', 'manager', 'user', name='user_role'), server_default='user', nullable=False))
 
 

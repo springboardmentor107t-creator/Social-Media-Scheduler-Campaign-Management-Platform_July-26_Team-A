@@ -23,7 +23,14 @@ def _get_database_url() -> str:
     return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{database}"
 
 
-engine: Engine = create_engine(_get_database_url(), pool_pre_ping=True)
+engine: Engine = create_engine(
+    _get_database_url(),
+    pool_pre_ping=True,
+    pool_size=int(os.getenv("POSTGRES_POOL_SIZE", "10")),
+    max_overflow=int(os.getenv("POSTGRES_MAX_OVERFLOW", "20")),
+    pool_recycle=int(os.getenv("POSTGRES_POOL_RECYCLE", "1800")),
+    connect_args={"connect_timeout": int(os.getenv("POSTGRES_CONNECT_TIMEOUT", "5"))},
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

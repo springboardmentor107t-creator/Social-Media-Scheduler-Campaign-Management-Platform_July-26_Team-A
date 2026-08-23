@@ -8,14 +8,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pymongo import MongoClient
 from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content, campaigns, analytics, notifications
 from app.api import youtube, facebook
 from app.models.facebook import FacebookAccount, FacebookPage
 from database.postgresql.connection import init_db
-from database.mongodb.connection import init_mongo_indexes
+from database.mongodb.connection import close_mongo_client, get_mongo_client, init_mongo_indexes
+from database.redis.connection import get_redis_client
 from app.presentation.dependencies.auth import RBACException
 
 app = FastAPI(
@@ -88,6 +88,11 @@ async def startup_db():
         print(f"Failed to initialize MongoDB indexes: {e}")
 
 
+@app.on_event("shutdown")
+async def shutdown_db():
+    close_mongo_client()
+
+
 
 
 @app.get("/")
@@ -103,7 +108,7 @@ def health_check():
         "postgresql+psycopg://socialpilot_user:socialpilot_password@postgres:5432/socialpilot_db"
     )
     try:
-        engine = create_engine(db_url, connect_args={'connect_timeout': 2})
+        engine = create_engine(db_url, connect_args={'connect_timeout': 2}, pool_pre_ping=True)
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         postgres_status = "connected"
@@ -112,21 +117,25 @@ def health_check():
 
     # 2. Check MongoDB Connection
     mongodb_status = "disconnected"
-    mongo_url = os.getenv(
-        "MONGODB_URL", 
-        "mongodb://admin:admin_password@mongodb:27017/socialpilot_db?authSource=admin"
-    )
     try:
-        client = MongoClient(mongo_url, serverSelectionTimeoutMS=2000)
+        client = get_mongo_client()
         # Trigger an action to force connection check
         client.admin.command('ping')
         mongodb_status = "connected"
     except Exception as e:
         mongodb_status = f"error: {str(e)}"
 
+    redis_status = "disconnected"
+    try:
+        get_redis_client().ping()
+        redis_status = "connected"
+    except Exception as e:
+        redis_status = f"error: {str(e)}"
+
     return {
-        "status": "healthy",
+        "status": "healthy" if all(value == "connected" for value in (postgres_status, mongodb_status, redis_status)) else "degraded",
         "database": postgres_status,
         "mongodb": mongodb_status,
+        "redis": redis_status,
         "timestamp": datetime.datetime.utcnow().isoformat()
     }

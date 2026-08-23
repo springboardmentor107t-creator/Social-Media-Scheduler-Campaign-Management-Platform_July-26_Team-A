@@ -33,6 +33,19 @@ graph TD
 * **Driver:** Asynchronous **Motor** client (`motor.motor_asyncio`) for non-blocking Event Loop integrations.
 * **Indexes:** Optimized with user-specific and provider-specific compound indexes for fast lookups.
 
+### 3. Redis (Operational Cache)
+* **Purpose:** Provides a production-ready cache and coordination store for future rate limiting, background jobs, and short-lived application state.
+* **Deployment:** Redis 7 with AOF persistence, password authentication, health checks, and a persistent Docker volume.
+* **Connection:** Configured through `REDIS_URL` with bounded socket timeouts and periodic health checks.
+
+## Production Operations
+
+PostgreSQL uses a pre-pingged connection pool with configurable pool size, overflow, recycling, and connection timeout values. MongoDB uses bounded async pools, retryable writes, and explicit connection timeouts. Both services and Redis are health-gated before the backend starts.
+
+Run `python -m alembic -c ../database/migrations/alembic.ini upgrade head` to apply the composite indexes in migration `b7c8d9e0f1a2`. The indexes cover owner feed ordering, pending schedule lookup, campaign ownership/status, and campaign/account time-series reads.
+
+Use `database/backup.ps1` to create a timestamped PostgreSQL custom-format dump and compressed MongoDB archive. Use `database/restore-test.ps1` with an isolated PostgreSQL database and MongoDB URI to verify recovery without modifying production data. The API health endpoint checks all three services; backend tests and PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` checks provide the application stability and query-plan verification steps.
+
 ---
 
 ## 📊 Entity Relationship (ER) Diagram
