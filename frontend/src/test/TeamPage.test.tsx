@@ -18,7 +18,14 @@ vi.mock('../components/DashboardShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid="shell">{children}</div>,
 }));
 vi.mock('../components/MapLoader', () => ({ default: () => null }));
-vi.mock('../components/InviteModal', () => ({ default: () => null }));
+vi.mock('../components/InviteModal', () => ({
+  default: ({ isOpen, onInvite }: { isOpen: boolean; onInvite: (emails: string[], role: string, message: string) => void }) =>
+    isOpen ? (
+      <div data-testid="mock-invite-modal">
+        <button onClick={() => onInvite(['test_creator@company.com'], 'Content Creator', '')}>Send Test Invite</button>
+      </div>
+    ) : null,
+}));
 vi.mock('../components/ConfirmModal', () => ({
   default: ({ isOpen, onConfirm, onClose }: { isOpen: boolean; onConfirm: () => void; onClose: () => void }) =>
     isOpen ? (
@@ -149,3 +156,41 @@ describe('TeamPage – GET /users error states', () => {
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
+
+describe('TeamPage - invite teammate notification', () => {
+  beforeEach(() => { mockApiFetch.mockReset(); });
+
+  it('calls createNotification when teammate is invited', async () => {
+    mockApiFetch
+      .mockResolvedValueOnce(TWO_USERS) // GET /users
+      .mockResolvedValueOnce({});       // POST /api/notifications
+
+    renderTeamPage();
+    await waitFor(() => screen.getByText('Alice Admin'));
+
+    // Click Invite Teammate button to open modal
+    const inviteBtn = screen.getByRole('button', { name: /\+ Invite teammate/i });
+    await userEvent.click(inviteBtn);
+
+    // Verify mock modal is open and click Send Test Invite
+    expect(screen.getByTestId('mock-invite-modal')).toBeInTheDocument();
+    const sendInviteBtn = screen.getByRole('button', { name: /Send Test Invite/i });
+    await userEvent.click(sendInviteBtn);
+
+    // Verify it called /api/notifications with POST
+    await waitFor(() =>
+      expect(mockApiFetch).toHaveBeenCalledWith(
+        '/api/notifications',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({
+            type: 'team_invite_sent',
+            message: 'Teammate test_creator@company.com was invited to join as Content Creator.',
+            target_user_id: null,
+          }),
+        })
+      )
+    );
+  });
+});
+

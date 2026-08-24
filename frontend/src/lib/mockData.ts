@@ -65,7 +65,8 @@ export type NotifType =
   | "publish_failure"
   | "campaign_alert"
   | "team_role_change"
-  | "team_invite_accepted";
+  | "team_invite_accepted"
+  | "team_invite_sent";
 
 export interface Notification {
   id: string;

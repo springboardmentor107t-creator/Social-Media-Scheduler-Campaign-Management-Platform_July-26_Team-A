@@ -34,6 +34,7 @@ const NOTIF_ICONS: Record<string, { emoji: string; label: string }> = {
   campaign_alert:       { emoji: "📣", label: "Campaign alert" },
   team_role_change:     { emoji: "🔑", label: "Role change" },
   team_invite_accepted: { emoji: "👋", label: "Invite accepted" },
+  team_invite_sent:     { emoji: "✉️", label: "Invite sent" },
 };
 
 function getIcon(type: string) {

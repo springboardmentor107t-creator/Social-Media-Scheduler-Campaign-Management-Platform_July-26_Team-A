@@ -50,3 +50,26 @@ export async function markAllNotificationsRead(): Promise<void> {
     // Silently fail
   }
 }
+
+/**
+ * Create a new notification (broadcast or targeted).
+ */
+export async function createNotification(
+  type: string,
+  message: string,
+  targetUserId?: string
+): Promise<ApiNotification | null> {
+  try {
+    return await apiFetch<ApiNotification>("/api/notifications", {
+      method: "POST",
+      body: JSON.stringify({
+        type,
+        message,
+        target_user_id: targetUserId || null,
+      }),
+    });
+  } catch {
+    return null;
+  }
+}
+

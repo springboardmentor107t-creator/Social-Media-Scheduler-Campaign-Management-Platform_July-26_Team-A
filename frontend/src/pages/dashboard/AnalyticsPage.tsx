@@ -86,8 +86,35 @@ export default function AnalyticsPage() {
             </g>
           ))}
         </svg>
-        <div className="flex justify-between text-[11px] text-muted-light dark:text-muted-dark px-6 mt-1 font-mono">
-          {dataPoints.map(dp => <span key={dp.date}>{dp.date}</span>)}
+        <div className="relative w-full h-6 mt-2 text-[11px] text-muted-light dark:text-muted-dark font-mono overflow-hidden">
+          {points
+            .filter((_, idx) => {
+              const total = points.length;
+              if (total <= 6) return true;
+              const step = Math.ceil(total / 5);
+              return idx === 0 || idx === total - 1 || idx % step === 0;
+            })
+            .map((p, idx) => {
+              const pct = (p.x / width) * 100;
+              let alignmentClass = "transform -translate-x-1/2";
+              let inlineStyle: React.CSSProperties = { left: `${pct}%` };
+              if (p.x === padding) {
+                alignmentClass = "";
+                inlineStyle = { left: `${(padding / width) * 100}%` };
+              } else if (p.x === width - padding) {
+                alignmentClass = "transform -translate-x-full";
+                inlineStyle = { left: `${((width - padding) / width) * 100}%` };
+              }
+              return (
+                <span
+                  key={idx}
+                  className={`absolute whitespace-nowrap ${alignmentClass}`}
+                  style={inlineStyle}
+                >
+                  {p.dp.date}
+                </span>
+              );
+            })}
         </div>
       </div>
     );
@@ -111,6 +138,23 @@ export default function AnalyticsPage() {
   return (
     <DashboardShell active="Analytics" roleLabel="Interactive Performance Engine">
       <div className="space-y-6">
+
+        {/* ── DEMO DATA Disclosure Banner ──────────────────────────────────── */}
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-semibold border"
+          style={{
+            background: "rgba(245,158,11,0.08)",
+            borderColor: "rgba(245,158,11,0.3)",
+            color: "#d97706",
+          }}
+        >
+          <span className="text-base">📊</span>
+          <span>
+            <strong>Demo Data:</strong> All analytics metrics displayed here are simulated for demonstration
+            purposes. Real-time data requires OAuth integration with each social platform's analytics API
+            (not yet connected). Numbers do not reflect actual account performance.
+          </span>
+        </div>
 
         {/* Header Tabs & Timeframe Selector */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 border-b border-line-light dark:border-line-dark pb-4">
@@ -162,7 +206,7 @@ export default function AnalyticsPage() {
             <select
               value={timeframe}
               onChange={(e) => setTimeframe(e.target.value)}
-              className="input-field text-xs py-1.5 px-3 max-w-[110px]"
+              className="input-field text-xs py-1.5 px-3 min-w-[130px]"
             >
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>

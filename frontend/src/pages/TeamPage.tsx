@@ -5,6 +5,8 @@ import InviteModal from "../components/InviteModal";
 import ConfirmModal from "../components/ConfirmModal";
 import EmptyState, { TeamEmptyIcon } from "../components/EmptyState";
 import { apiFetch } from "../services/api";
+import { createNotification } from "../services/notificationService";
+
 
 // ─── Role mapping ───────────────────────────────────────────────────────────
 // Backend uses: "user" | "manager" | "admin"
@@ -177,7 +179,7 @@ export default function TeamPage() {
   };
 
   // ── Invite (local optimistic) ─────────────────────────────────────────────
-  const handleInvite = (emails: string[], role: string, message: string) => {
+  const handleInvite = async (emails: string[], role: string, message: string) => {
     const newInvites: Member[] = emails.map((email, idx) => ({
       id: `optimistic-${Date.now()}-${idx}`,
       name: email.split("@")[0],
@@ -188,12 +190,22 @@ export default function TeamPage() {
       lastActive: "Never",
     }));
     setMembers((prev) => [...prev, ...newInvites]);
+
+    // Create a database notification for each invited user so that other team members see the invite
+    for (const email of emails) {
+      await createNotification(
+        "team_invite_sent",
+        `Teammate ${email} was invited to join as ${role}.`
+      );
+    }
+
     showToast(
       message.trim()
         ? `Invited ${emails.length} teammate(s) with personal note.`
         : `Invited ${emails.length} teammate(s).`
     );
   };
+
 
   const openConfirmModal = (
     type: "remove" | "deactivate" | "activate" | "change_role",

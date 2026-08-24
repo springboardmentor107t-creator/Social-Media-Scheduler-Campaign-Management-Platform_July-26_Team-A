@@ -1,24 +1,56 @@
+import os
+import sys
 import uuid
 import pytest
 from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+
+# Add root workspace directories to sys.path to support imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.main import app
-from database.postgresql.connection import get_session, init_db
-from database.postgresql.models import User, SocialAccount, Content, ScheduledPost, UserRole, ContentStatus, ScheduledPostStatus
+from database.postgresql.models import (
+    Base, User, SocialAccount, Content, ScheduledPost, UserRole, ContentStatus, ScheduledPostStatus
+)
+from database.postgresql.connection import get_db
 from app.core.security import create_access_token
+
+# Setup testing in-memory SQLite database using StaticPool to persist connection
+SQLALCHEMY_DATABASE_URL = "sqlite://"
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 client = TestClient(app)
 
 
-@pytest.fixture(scope="module", autouse=True)
-def setup_database():
-    init_db()
+@pytest.fixture(scope="function", autouse=True)
+def setup_db():
+    Base.metadata.create_all(bind=engine)
+    
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+            
+    app.dependency_overrides[get_db] = override_get_db
+    yield
+    app.dependency_overrides.pop(get_db, None)
+    Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
 def test_user_and_token():
-    db = get_session()
+    db = TestingSessionLocal()
     uid = uuid.uuid4().hex[:8]
     email = f"test_creator_{uid}@example.com"
     user = User(
@@ -53,17 +85,7 @@ def test_user_and_token():
 
     token = create_access_token({"sub": str(user.id), "email": user.email, "role": "user", "type": "access"})
     yield user, token, sa1, sa2
-
-    try:
-        db.query(ScheduledPost).filter(ScheduledPost.content_id.in_(
-            db.query(Content.id).filter(Content.owner_id == user.id)
-        )).delete(synchronize_session=False)
-        db.query(Content).filter(Content.owner_id == user.id).delete(synchronize_session=False)
-        db.query(SocialAccount).filter(SocialAccount.user_id == user.id).delete(synchronize_session=False)
-        db.query(User).filter(User.id == user.id).delete(synchronize_session=False)
-        db.commit()
-    except Exception:
-        db.rollback()
+    db.close()
 
 
 def test_create_content_draft(test_user_and_token):

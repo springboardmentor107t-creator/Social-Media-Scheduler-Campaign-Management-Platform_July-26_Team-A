@@ -3,7 +3,7 @@ import asyncio
 from typing import Optional, List
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel, Field
 
 from database.postgresql.connection import get_db
@@ -280,7 +280,15 @@ def get_campaign_scheduled_posts(
     if not campaign:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
 
-    posts = db.query(ScheduledPost).filter(ScheduledPost.campaign_id == campaign_id).all()
+    posts = (
+        db.query(ScheduledPost)
+        .filter(ScheduledPost.campaign_id == campaign_id)
+        .options(
+            joinedload(ScheduledPost.content),
+            joinedload(ScheduledPost.social_account),
+        )
+        .all()
+    )
     result = []
     for p in posts:
         result.append({

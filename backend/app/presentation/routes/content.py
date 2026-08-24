@@ -190,7 +190,17 @@ def list_contents(
             pass
 
     total = query.count()
-    contents = query.order_by(Content.created_at.desc()).offset(skip).limit(limit).all()
+    # Eager-load scheduled_posts → social_account to avoid N+1 per content row
+    contents = (
+        query
+        .options(
+            joinedload(Content.scheduled_posts).joinedload(ScheduledPost.social_account)
+        )
+        .order_by(Content.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
     items = [_serialize_content(c, db) for c in contents]
     return {
