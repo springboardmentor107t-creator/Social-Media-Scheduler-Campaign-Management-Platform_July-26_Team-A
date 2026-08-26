@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
+from app.core.security import get_password_hash
 from database.postgresql.connection import SessionLocal
 from database.postgresql.models import (
     AudienceGrowth,
@@ -54,7 +55,7 @@ def seed_all():
                 email="alice@example.com",
                 username="alice_demo",
                 full_name="Alice Demo",
-                password_hash="hashed_password_1",
+                password_hash=get_password_hash("password123"),
                 is_active=True,
                 role=UserRole.USER,
                 phone_number="+15550000001",
@@ -67,7 +68,7 @@ def seed_all():
                 email="bob@example.com",
                 username="bob_demo",
                 full_name="Bob Demo",
-                password_hash="hashed_password_2",
+                password_hash=get_password_hash("password123"),
                 is_active=True,
                 role=UserRole.MANAGER,
                 phone_number="+15550000002",
@@ -80,7 +81,7 @@ def seed_all():
                 email="charlie@example.com",
                 username="charlie_demo",
                 full_name="Charlie Demo",
-                password_hash="hashed_password_3",
+                password_hash=get_password_hash("password123"),
                 is_active=True,
                 role=UserRole.ADMIN,
                 phone_number="+15550000003",

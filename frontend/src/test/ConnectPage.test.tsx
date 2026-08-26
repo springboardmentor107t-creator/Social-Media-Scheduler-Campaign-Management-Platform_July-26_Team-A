@@ -11,6 +11,16 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ConnectPage from '../pages/ConnectPage';
 
+// ── Mock services/api ─────────────────────────────────────────────────────────
+vi.mock('../services/api', () => ({
+  apiFetch: vi.fn(),
+  getAccessToken: vi.fn(() => null),
+  setTokens: vi.fn(),
+  clearSession: vi.fn(),
+}));
+import { apiFetch } from '../services/api';
+const mockApiFetch = vi.mocked(apiFetch);
+
 // ── Mock the stub module ──────────────────────────────────────────────────────
 vi.mock('../components/DashboardShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid="shell">{children}</div>,
@@ -47,6 +57,7 @@ describe('ConnectPage – status-based button rendering', () => {
   beforeEach(() => {
     mockGet.mockResolvedValue(MOCK_ACCOUNTS);
     mockDisconnect.mockClear();
+    mockApiFetch.mockResolvedValue({ connected: false, accounts: [] });
   });
 
   it('renders a Disconnect button for connected accounts', async () => {

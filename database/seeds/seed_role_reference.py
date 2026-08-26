@@ -8,7 +8,7 @@ if project_root not in sys.path:
 
 from database.postgresql.connection import get_session
 from database.postgresql.models import RoleReference
-from backend.app.core.roles_mapping import FRONTEND_TO_BACKEND_ROLE
+from app.core.roles_mapping import FRONTEND_TO_BACKEND_ROLE
 
 DATA_TO_SEED = [
   {

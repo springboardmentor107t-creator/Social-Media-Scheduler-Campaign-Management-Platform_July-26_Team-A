@@ -40,6 +40,27 @@ class CampaignUpdate(BaseModel):
     platforms: Optional[List[str]] = None
     kpis: Optional[dict] = None
 
+class CampaignResponse(BaseModel):
+    id: uuid.UUID
+    owner_id: uuid.UUID
+    title: str
+    name: str
+    description: Optional[str] = None
+    status: CampaignStatus
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    budget: Optional[str] = None
+    spent: Optional[str] = None
+    platforms: Optional[List[str]] = None
+    kpis: Optional[dict] = None
+    objective: Optional[str] = None
+    target_audience: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
 class SchedulePostForCampaign(BaseModel):
     title: str
     body: Optional[str] = ""
@@ -47,7 +68,7 @@ class SchedulePostForCampaign(BaseModel):
     scheduled_time: datetime
     platform: Optional[str] = "twitter"
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CampaignResponse, status_code=status.HTTP_201_CREATED)
 def create_campaign(
     schema: CampaignCreate,
     background_tasks: BackgroundTasks,
@@ -80,17 +101,15 @@ def create_campaign(
     # Broadcast notification to all users about the new campaign
     creator_name = current_user.full_name or current_user.username or current_user.email
     background_tasks.add_task(
-        asyncio.run,
-        broadcast_campaign_notification(
-            campaign_name=campaign.name,
-            created_by_name=creator_name,
-            created_by_id=str(current_user.id),
-        )
+        broadcast_campaign_notification,
+        campaign_name=campaign.name,
+        created_by_name=creator_name,
+        created_by_id=str(current_user.id),
     )
 
     return campaign
 
-@router.get("")
+@router.get("", response_model=List[CampaignResponse])
 def list_campaigns(
     status_filter: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db),
@@ -103,7 +122,7 @@ def list_campaigns(
     campaigns = query.order_by(Campaign.created_at.desc()).all()
     return campaigns
 
-@router.get("/{campaign_id}")
+@router.get("/{campaign_id}", response_model=CampaignResponse)
 def get_campaign(
     campaign_id: uuid.UUID,
     db: Session = Depends(get_db),
@@ -118,7 +137,7 @@ def get_campaign(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Campaign not found")
     return campaign
 
-@router.put("/{campaign_id}")
+@router.put("/{campaign_id}", response_model=CampaignResponse)
 def update_campaign(
     campaign_id: uuid.UUID,
     schema: CampaignUpdate,
