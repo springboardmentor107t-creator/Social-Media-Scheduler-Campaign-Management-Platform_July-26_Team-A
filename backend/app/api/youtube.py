@@ -10,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from database.postgresql.connection import get_db
-from database.postgresql.models import User
+from database.postgresql.models import User, SocialAccount
 from app.core.config import settings
 from app.core.security import decode_token
 from app.presentation.dependencies.auth import get_current_user
@@ -71,19 +71,20 @@ def youtube_callback(
     code: str = Query(None),
     state: str = Query(None),
     error: str = Query(None),
+    db: Session = Depends(get_db),
     youtube_service: YouTubeService = Depends(get_youtube_service)
 ):
     """
     Google OAuth redirect callback.
     Exchanges auth code for tokens, retrieves channel info, and saves to database.
     """
-    frontend_url = "http://localhost:5173/dashboard/connect"
+    frontend_url = f"{settings.FRONTEND_URL}/dashboard/connect"
     
     if error:
-        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(error)}")
+        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(error)}&platform=youtube")
         
     if not code or not state:
-        return RedirectResponse(f"{frontend_url}?error=Missing%20code%20or%20state%20parameter")
+        return RedirectResponse(f"{frontend_url}?error=Missing%20code%20or%20state%20parameter&platform=youtube")
 
     # Decode and validate state parameter
     try:
@@ -93,7 +94,7 @@ def youtube_callback(
             raise ValueError("State payload is missing subject claim")
         user_id = UUID(user_id_str)
     except Exception:
-        return RedirectResponse(f"{frontend_url}?error=Invalid%20or%20expired%20OAuth%20state")
+        return RedirectResponse(f"{frontend_url}?error=Invalid%20or%20expired%20OAuth%20state&platform=youtube")
 
     # Perform OAuth code exchange and API sync
     try:
@@ -107,7 +108,7 @@ def youtube_callback(
         channel_details = youtube_service.fetch_channel_details(access_token)
         email = youtube_service.fetch_user_email(access_token)
 
-        # Save to database
+        # Save to database (YouTubeAccount)
         youtube_service.repository.create_or_update(
             user_id=user_id,
             channel_id=channel_details["channel_id"],
@@ -118,15 +119,41 @@ def youtube_callback(
             expires_at=expires_at
         )
 
-        return RedirectResponse(f"{frontend_url}?success=true")
+        # Save to general SocialAccount table as well
+        social_acc = db.query(SocialAccount).filter(
+            SocialAccount.user_id == user_id,
+            SocialAccount.provider == "youtube",
+            SocialAccount.provider_account_id == channel_details["channel_id"]
+        ).first()
+        
+        if social_acc:
+            social_acc.account_name = channel_details["channel_name"]
+            social_acc.access_token = access_token
+            social_acc.refresh_token = refresh_token
+            social_acc.is_active = True
+        else:
+            social_acc = SocialAccount(
+                user_id=user_id,
+                provider="youtube",
+                provider_account_id=channel_details["channel_id"],
+                account_name=channel_details["channel_name"],
+                access_token=access_token,
+                refresh_token=refresh_token,
+                is_active=True
+            )
+            db.add(social_acc)
+        db.commit()
+
+        return RedirectResponse(f"{frontend_url}?success=true&platform=youtube")
     except HTTPException as e:
-        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(e.detail)}")
+        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(e.detail)}&platform=youtube")
     except Exception as e:
-        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(str(e))}")
+        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(str(e))}&platform=youtube")
 
 
 @router.delete("/youtube/disconnect", status_code=status.HTTP_200_OK)
 def youtube_disconnect(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     youtube_service: YouTubeService = Depends(get_youtube_service)
 ):
@@ -143,6 +170,16 @@ def youtube_disconnect(
 
     # Disconnect all linked channels for the user
     for account in accounts:
+        # Delete from general SocialAccount table
+        social_acc = db.query(SocialAccount).filter(
+            SocialAccount.user_id == current_user.id,
+            SocialAccount.provider == "youtube",
+            SocialAccount.provider_account_id == account.channel_id
+        ).first()
+        if social_acc:
+            db.delete(social_acc)
+            db.commit()
+
         youtube_service.disconnect_account(account)
 
     return {"message": "YouTube account disconnected successfully."}

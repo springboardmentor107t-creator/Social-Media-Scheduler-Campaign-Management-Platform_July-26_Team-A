@@ -164,3 +164,19 @@ def test_single_campaign_report_success():
     assert "summary" in data
     assert "kpi_performance" in data
     assert "campaign_id" in data
+
+
+# ── Post Analytics ────────────────────────────────────────────────────────────
+def test_post_analytics_success():
+    """Returns 200 with a list of published post analytics."""
+    res = client.get("/api/analytics/posts", headers=_headers())
+    assert res.status_code == 200
+    data = res.json()
+    assert isinstance(data, list)
+
+
+def test_post_analytics_requires_auth():
+    """Unauthenticated requests return 401."""
+    res = client.get("/api/analytics/posts")
+    assert res.status_code == 401
+

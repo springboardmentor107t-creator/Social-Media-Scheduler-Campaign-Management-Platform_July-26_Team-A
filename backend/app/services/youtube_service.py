@@ -144,9 +144,14 @@ class YouTubeService:
         """
         Silently refresh the access token if it is expired or close to expiry.
         """
-        now = datetime.now(timezone.utc)
+        expires_at = account.expires_at
+        if expires_at.tzinfo is not None:
+            now = datetime.now(timezone.utc)
+        else:
+            now = datetime.now()
+
         # Check if expired or expiring in under 60 seconds
-        if account.expires_at > now + timedelta(seconds=60):
+        if expires_at > now + timedelta(seconds=60):
             return account
 
         if not account.refresh_token:

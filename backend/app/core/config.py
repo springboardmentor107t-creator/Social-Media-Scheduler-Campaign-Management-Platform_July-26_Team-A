@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         "CORS_ORIGINS",
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://localhost:3000"
     )
+    # Frontend base URL — used by OAuth callbacks to redirect back after login.
+    # Change this to http://localhost:5174 if Vite picks a different port,
+    # or set it via FRONTEND_URL in your .env file.
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
     # ── YouTube OAuth ─────────────────────────────────────────────────────────
     YOUTUBE_CLIENT_ID: str = os.getenv("YOUTUBE_CLIENT_ID", "")
@@ -45,6 +49,11 @@ class Settings(BaseSettings):
     FACEBOOK_APP_SECRET: str = os.getenv("FACEBOOK_APP_SECRET", "")
     FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "http://localhost:8000/auth/facebook/callback")
     FACEBOOK_API_VERSION: str = os.getenv("FACEBOOK_API_VERSION", "v23.0")
+
+    # ── LinkedIn OAuth ────────────────────────────────────────────────────────
+    LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")
+    LINKEDIN_CLIENT_SECRET: str = os.getenv("LINKEDIN_CLIENT_SECRET", "")
+    LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
 
     class Config:
         env_file = ".env"

@@ -89,6 +89,7 @@ export default function ConnectPage() {
     if (isSyncAction) setSyncing(true); else setLoading(true);
     try {
       const data = await getConnectedAccounts();
+      // Fetch real YouTube status
       try {
         const ytStatus = await apiFetch<{
           connected: boolean;
@@ -108,6 +109,26 @@ export default function ConnectPage() {
       } catch (err) {
         console.error("Failed to fetch real YouTube status:", err);
       }
+      // Fetch real LinkedIn status
+      try {
+        const liStatus = await apiFetch<{
+          connected: boolean;
+          accounts: Array<{ profile_id: string; profile_name: string; email?: string }>;
+        }>("/linkedin/status");
+        
+        const liIdx = data.findIndex(a => a.platform === "linkedin");
+        if (liIdx !== -1) {
+          if (liStatus.connected && liStatus.accounts.length > 0) {
+            data[liIdx].status = "connected";
+            data[liIdx].handle = liStatus.accounts[0].profile_name;
+          } else {
+            data[liIdx].status = "disconnected";
+            data[liIdx].handle = undefined;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch real LinkedIn status:", err);
+      }
       setAccounts(data);
     } finally {
       if (isSyncAction) setSyncing(false); else setLoading(false);
@@ -116,14 +137,16 @@ export default function ConnectPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const platform = params.get("platform");
+    const platLabel = platform === "linkedin" ? "LinkedIn" : platform === "youtube" ? "YouTube" : "Account";
     if (params.get("success") === "true") {
-      showToast("YouTube account connected successfully!");
+      showToast(`${platLabel} account connected successfully!`);
       window.history.replaceState({}, document.title, window.location.pathname);
       load();
     } else {
       const errorMsg = params.get("error");
       if (errorMsg) {
-        showToast(`Failed to connect YouTube: ${decodeURIComponent(errorMsg)}`);
+        showToast(`Failed to connect ${platLabel}: ${decodeURIComponent(errorMsg)}`);
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
@@ -139,6 +162,15 @@ export default function ConnectPage() {
         return;
       }
       window.location.href = `http://127.0.0.1:8000/auth/youtube/login?token=${encodeURIComponent(token)}`;
+      return;
+    }
+    if (platform === "linkedin") {
+      const token = getAccessToken();
+      if (!token) {
+        showToast("You must be logged in to connect a LinkedIn account.");
+        return;
+      }
+      window.location.href = `http://127.0.0.1:8000/api/auth/linkedin/login?token=${encodeURIComponent(token)}`;
       return;
     }
     showToast(`OAuth for ${platform} is not yet available — coming soon.`);
@@ -157,6 +189,14 @@ export default function ConnectPage() {
           )
         );
         showToast("YouTube account disconnected.");
+      } else if (target.platform === "linkedin") {
+        await apiFetch("/linkedin/disconnect", { method: "DELETE" });
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.platform === "linkedin" ? { ...a, status: "disconnected", handle: undefined } : a
+          )
+        );
+        showToast("LinkedIn account disconnected.");
       } else {
         await disconnectAccount(target.platform);
         setAccounts((prev) =>
@@ -184,7 +224,7 @@ export default function ConnectPage() {
             </p>
             {/* STUB notice */}
             <p className="text-xs mt-1 font-semibold" style={{ color: "#f59e0b" }}>
-              ⚠ OAuth backend for YouTube is LIVE. Other platform integrations are mock data.
+              ⚠ OAuth backends for YouTube and LinkedIn are LIVE. Other platform integrations are simulated.
             </p>
           </div>
           <button

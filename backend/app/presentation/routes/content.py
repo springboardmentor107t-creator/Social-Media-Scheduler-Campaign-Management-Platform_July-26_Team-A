@@ -27,6 +27,63 @@ def get_social_accounts(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from app.models.linkedin import LinkedInAccount
+    from app.models.youtube import YouTubeAccount
+
+    # 1. Sync LinkedIn accounts to SocialAccount
+    li_accounts = db.query(LinkedInAccount).filter(LinkedInAccount.user_id == current_user.id).all()
+    for li in li_accounts:
+        exists = db.query(SocialAccount).filter(
+            SocialAccount.user_id == current_user.id,
+            SocialAccount.provider == "linkedin",
+            SocialAccount.provider_account_id == li.profile_id
+        ).first()
+        if not exists:
+            new_sa = SocialAccount(
+                user_id=current_user.id,
+                provider="linkedin",
+                provider_account_id=li.profile_id,
+                account_name=li.profile_name,
+                access_token=li.access_token,
+                refresh_token=li.refresh_token,
+                is_active=True
+            )
+            db.add(new_sa)
+            db.commit()
+        else:
+            # Keep access token, refresh token and status synced
+            exists.access_token = li.access_token
+            exists.refresh_token = li.refresh_token
+            exists.is_active = True
+            db.commit()
+
+    # 2. Sync YouTube accounts to SocialAccount
+    yt_accounts = db.query(YouTubeAccount).filter(YouTubeAccount.user_id == current_user.id).all()
+    for yt in yt_accounts:
+        exists = db.query(SocialAccount).filter(
+            SocialAccount.user_id == current_user.id,
+            SocialAccount.provider == "youtube",
+            SocialAccount.provider_account_id == yt.channel_id
+        ).first()
+        if not exists:
+            new_sa = SocialAccount(
+                user_id=current_user.id,
+                provider="youtube",
+                provider_account_id=yt.channel_id,
+                account_name=yt.channel_name,
+                access_token=yt.access_token,
+                refresh_token=yt.refresh_token,
+                is_active=True
+            )
+            db.add(new_sa)
+            db.commit()
+        else:
+            # Keep access token, refresh token and status synced
+            exists.access_token = yt.access_token
+            exists.refresh_token = yt.refresh_token
+            exists.is_active = True
+            db.commit()
+
     accounts = db.query(SocialAccount).filter(
         SocialAccount.user_id == current_user.id,
         SocialAccount.is_active == True
@@ -389,6 +446,46 @@ def schedule_posts(
             status=initial_status,
         )
         db.add(sp)
+
+        # ── REAL TIME PUBLISHING FOR LINKEDIN ───────────────────────────────
+        if schema.publish_now and sa.provider == "linkedin":
+            from app.models.linkedin import LinkedInAccount
+            from app.services.linkedin_service import LinkedInService
+            from app.repositories.linkedin_repository import LinkedInRepository
+            
+            li_account = db.query(LinkedInAccount).filter(
+                LinkedInAccount.user_id == current_user.id,
+                LinkedInAccount.profile_id == sa.provider_account_id
+            ).first()
+            
+            if not li_account:
+                sp.status = ScheduledPostStatus.FAILED
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="LinkedIn account credentials not found in database."
+                )
+            
+            li_service = LinkedInService(LinkedInRepository(db))
+            try:
+                li_account = li_service.refresh_access_token_if_expired(li_account)
+                
+                media = content.media_urls if isinstance(content.media_urls, list) else None
+                text_to_post = content.body or content.title
+                
+                li_service.publish_post(
+                    access_token=li_account.access_token,
+                    profile_id=li_account.profile_id,
+                    text_content=text_to_post,
+                    media_urls=media
+                )
+            except Exception as e:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Failed to post to LinkedIn: {str(e)}"
+                )
+
         created_sp_list.append(sp)
 
     # Update content status

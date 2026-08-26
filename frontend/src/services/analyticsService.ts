@@ -3,6 +3,7 @@ import { apiFetch } from "./api";
 export interface EngagementData {
   timeframe: string;
   platform: string;
+  is_mock?: boolean;
   summary: {
     total_engagement: number;
     avg_engagement_rate: string;
@@ -28,6 +29,7 @@ export interface EngagementData {
 }
 
 export interface AudienceData {
+  is_mock?: boolean;
   summary: {
     total_followers: number;
     net_gained_period: number;
@@ -49,6 +51,7 @@ export interface AudienceData {
 }
 
 export interface CampaignReportSummary {
+  is_mock?: boolean;
   overview: {
     total_campaigns: number;
     active_campaigns: number;
@@ -331,3 +334,99 @@ export async function fetchCampaignComparison(): Promise<CampaignComparisonData>
     };
   }
 }
+
+export interface PostAnalyticsData {
+  post_id: string;
+  content_id: string;
+  title: string;
+  body: string;
+  platform: string;
+  account_name: string;
+  published_at: string;
+  status: string;
+  metrics: {
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    clicks: number;
+    reach: number;
+    views: number;
+    ctr: number;
+    engagement_rate: number;
+  };
+}
+
+export async function fetchPostAnalytics(): Promise<PostAnalyticsData[]> {
+  try {
+    return await apiFetch<PostAnalyticsData[]>("/api/analytics/posts");
+  } catch {
+    // Fallback/mock data for offline/development environments
+    return [
+      {
+        post_id: "sp-101",
+        content_id: "c-101",
+        title: "Summer Campaign Launch Promo",
+        body: "Get ready for the hottest deals of the summer! Launching soon. #SummerSale",
+        platform: "Instagram",
+        account_name: "Brand IG",
+        published_at: "2026-08-25T14:30:00Z",
+        status: "published",
+        metrics: {
+          impressions: 4800,
+          likes: 215,
+          comments: 28,
+          shares: 12,
+          clicks: 140,
+          reach: 3900,
+          views: 4800,
+          ctr: 0.029,
+          engagement_rate: 0.053
+        }
+      },
+      {
+        post_id: "sp-102",
+        content_id: "c-102",
+        title: "New Product Feature Reveal",
+        body: "Introducing our new analytics engine! Gain deeper insights with one click. #FeatureRelease",
+        platform: "Linkedin",
+        account_name: "Brand LinkedIn Page",
+        published_at: "2026-08-24T18:00:00Z",
+        status: "published",
+        metrics: {
+          impressions: 6200,
+          likes: 340,
+          comments: 42,
+          shares: 31,
+          clicks: 195,
+          reach: 5100,
+          views: 6200,
+          ctr: 0.031,
+          engagement_rate: 0.067
+        }
+      },
+      {
+        post_id: "sp-103",
+        content_id: "c-103",
+        title: "Weekly SEO Tips thread",
+        body: "1/5 How to optimize your meta tags for 2026. A quick guide for creators. 👇",
+        platform: "Twitter",
+        account_name: "Brand X Account",
+        published_at: "2026-08-25T09:00:00Z",
+        status: "published",
+        metrics: {
+          impressions: 3100,
+          likes: 125,
+          comments: 14,
+          shares: 18,
+          clicks: 80,
+          reach: 2800,
+          views: 3100,
+          ctr: 0.026,
+          engagement_rate: 0.051
+        }
+      }
+    ];
+  }
+}
+

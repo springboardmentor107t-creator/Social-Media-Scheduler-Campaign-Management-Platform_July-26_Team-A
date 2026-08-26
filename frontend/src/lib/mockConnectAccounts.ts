@@ -1,11 +1,10 @@
 /**
  * mockConnectAccounts.ts
  *
- * STUB — All platforms use mock data.
- * No backend OAuth endpoints exist yet (/oauth/* routes are absent from all backend
- * route files). Replace getConnectedAccounts() with a real apiFetch call to
- * GET /oauth/accounts/status when backend OAuth is implemented.
+ * All platforms check backend `/social-accounts` status.
+ * If a platform is connected in the database, its status and handle are populated.
  */
+import { apiFetch } from "../services/api";
 
 export interface PlatformAccount {
   platform: string;       // e.g. "facebook"
@@ -14,24 +13,48 @@ export interface PlatformAccount {
   status: "connected" | "pending" | "disconnected";
 }
 
-const MOCK_DATA: PlatformAccount[] = [
-  { platform: "facebook",  displayName: "Facebook",  handle: "@socialpilot_co", status: "connected" },
-  { platform: "instagram", displayName: "Instagram", handle: "@socialpilot",     status: "pending" },
+const DEFAULT_PLATFORMS: PlatformAccount[] = [
+  { platform: "facebook",  displayName: "Facebook",  status: "disconnected" },
+  { platform: "instagram", displayName: "Instagram", status: "disconnected" },
   { platform: "linkedin",  displayName: "LinkedIn",  status: "disconnected" },
-  { platform: "twitter",   displayName: "X (Twitter)", handle: "@socialpilot_x", status: "connected" },
+  { platform: "twitter",   displayName: "X (Twitter)", status: "disconnected" },
   { platform: "youtube",   displayName: "YouTube",   status: "disconnected" },
   { platform: "pinterest", displayName: "Pinterest", status: "disconnected" },
 ];
 
-/** Fake 600 ms network delay for realistic UX testing. */
+/** Fetch the real statuses of the user's accounts from the backend */
 export async function getConnectedAccounts(): Promise<PlatformAccount[]> {
-  await new Promise((r) => setTimeout(r, 600));
-  // STUB: return structuredClone so callers can mutate freely
-  return structuredClone(MOCK_DATA);
+  try {
+    const activeAccounts = await apiFetch<Array<{ id: string; provider: string; account_name: string; is_active: boolean }>>("/social-accounts");
+    
+    const platforms = structuredClone(DEFAULT_PLATFORMS);
+    
+    // Update active accounts based on backend db
+    for (const acc of activeAccounts) {
+      const idx = platforms.findIndex(p => p.platform === acc.provider.toLowerCase());
+      if (idx !== -1) {
+        platforms[idx].status = "connected";
+        platforms[idx].handle = acc.account_name;
+      }
+    }
+    
+    return platforms;
+  } catch (err) {
+    console.error("Failed to load real connected accounts:", err);
+    return structuredClone(DEFAULT_PLATFORMS);
+  }
 }
 
-/** Stub disconnect — always succeeds after 400 ms. */
+/** Disconnect platform on the backend */
 export async function disconnectAccount(platform: string): Promise<void> {
-  await new Promise((r) => setTimeout(r, 400));
-  console.info(`[STUB] disconnected ${platform}`);
+  const p = platform.toLowerCase();
+  if (p === "linkedin") {
+    await apiFetch("/linkedin/disconnect", { method: "DELETE" });
+  } else if (p === "youtube") {
+    await apiFetch("/youtube/disconnect", { method: "DELETE" });
+  } else {
+    // Simulated disconnect for platforms without OAuth implementation
+    await new Promise((r) => setTimeout(r, 400));
+    console.info(`[STUB] disconnected simulated platform: ${platform}`);
+  }
 }

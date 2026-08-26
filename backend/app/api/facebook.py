@@ -89,7 +89,7 @@ def facebook_callback(
     4. Fetches User Pages (/me/accounts) & Page Access Tokens
     5. Saves Facebook Account and Pages to Database
     """
-    frontend_url = "http://localhost:5173/dashboard/connect"
+    frontend_url = f"{settings.FRONTEND_URL}/dashboard/connect"
 
     if error:
         detail_msg = error_description or error
