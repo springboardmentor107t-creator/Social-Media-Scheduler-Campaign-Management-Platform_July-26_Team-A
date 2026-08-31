@@ -48,7 +48,22 @@ class Settings(BaseSettings):
     FACEBOOK_APP_ID: str = os.getenv("FACEBOOK_APP_ID", "")
     FACEBOOK_APP_SECRET: str = os.getenv("FACEBOOK_APP_SECRET", "")
     FACEBOOK_REDIRECT_URI: str = os.getenv("FACEBOOK_REDIRECT_URI", "http://localhost:8000/auth/facebook/callback")
-    FACEBOOK_API_VERSION: str = os.getenv("FACEBOOK_API_VERSION", "v23.0")
+    FACEBOOK_API_VERSION: str = os.getenv("FACEBOOK_API_VERSION", "v26.0")
+    FACEBOOK_CONFIG_ID: str = os.getenv("FACEBOOK_CONFIG_ID", "")
+    FACEBOOK_CLIENT_TOKEN: str = os.getenv("FACEBOOK_CLIENT_TOKEN", "")
+
+    # ── Instagram OAuth (Reuses Facebook App) ─────────────────────────────────
+    INSTAGRAM_APP_ID: str = os.getenv("INSTAGRAM_APP_ID", "")
+    INSTAGRAM_APP_SECRET: str = os.getenv("INSTAGRAM_APP_SECRET", "")
+    INSTAGRAM_REDIRECT_URI: str = os.getenv("INSTAGRAM_REDIRECT_URI", "http://localhost:8000/auth/instagram/callback")
+
+    # ── Meta Graph API (short-lived token for dev/testing only) ───────────────
+    META_USER_ACCESS_TOKEN: str = os.getenv("META_USER_ACCESS_TOKEN", "")
+    META_USER_ID: str = os.getenv("META_USER_ID", "")
+
+    # ── Instagram test token (long-lived, generated from Meta API setup page) ─
+    INSTAGRAM_TEST_ACCESS_TOKEN: str = os.getenv("INSTAGRAM_TEST_ACCESS_TOKEN", "")
+    INSTAGRAM_TEST_USER_ID: str = os.getenv("INSTAGRAM_TEST_USER_ID", "")
 
     # ── LinkedIn OAuth ────────────────────────────────────────────────────────
     LINKEDIN_CLIENT_ID: str = os.getenv("LINKEDIN_CLIENT_ID", "")

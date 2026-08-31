@@ -29,6 +29,7 @@ def get_social_accounts(
 ):
     from app.models.linkedin import LinkedInAccount
     from app.models.youtube import YouTubeAccount
+    from app.models.facebook import FacebookAccount
 
     # 1. Sync LinkedIn accounts to SocialAccount
     li_accounts = db.query(LinkedInAccount).filter(LinkedInAccount.user_id == current_user.id).all()
@@ -81,6 +82,32 @@ def get_social_accounts(
             # Keep access token, refresh token and status synced
             exists.access_token = yt.access_token
             exists.refresh_token = yt.refresh_token
+            exists.is_active = True
+            db.commit()
+
+    # 3. Sync Facebook accounts to SocialAccount
+    fb_accounts = db.query(FacebookAccount).filter(FacebookAccount.user_id == current_user.id).all()
+    for fb in fb_accounts:
+        exists = db.query(SocialAccount).filter(
+            SocialAccount.user_id == current_user.id,
+            SocialAccount.provider == "facebook",
+            SocialAccount.provider_account_id == fb.facebook_id
+        ).first()
+        if not exists:
+            new_sa = SocialAccount(
+                user_id=current_user.id,
+                provider="facebook",
+                provider_account_id=fb.facebook_id,
+                account_name=fb.name,
+                access_token=fb.access_token,
+                is_active=True
+            )
+            db.add(new_sa)
+            db.commit()
+        else:
+            # Keep access token and status synced
+            exists.account_name = fb.name
+            exists.access_token = fb.access_token
             exists.is_active = True
             db.commit()
 
@@ -410,15 +437,18 @@ def schedule_posts(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to schedule this content")
 
     now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(timezone.utc)
     target_time = schema.scheduled_time
     if target_time.tzinfo is None:
         target_time = target_time.replace(tzinfo=timezone.utc)
 
     if not schema.publish_now and target_time <= now_utc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Scheduled time must be in the future."
-        )
+        # Allow 2-minute grace period for clock skew between client and server
+        if (now_utc - target_time).total_seconds() > 120:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Scheduled time must be in the future."
+            )
 
     if not schema.social_account_ids:
         raise HTTPException(
@@ -485,6 +515,158 @@ def schedule_posts(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=f"Failed to post to LinkedIn: {str(e)}"
                 )
+
+        # ── REAL TIME PUBLISHING FOR FACEBOOK ───────────────────────────────
+        if schema.publish_now and sa.provider == "facebook":
+            from app.models.facebook import FacebookPage
+            from app.services.facebook_service import FacebookService
+            from app.repositories.facebook_repository import FacebookRepository
+
+            fb_repo = FacebookRepository(db)
+            fb_service = FacebookService(fb_repo)
+
+            # Get the first active page belonging to this Facebook account
+            fb_page = db.query(FacebookPage).join(FacebookPage.account).filter(
+                FacebookPage.account.has(user_id=current_user.id),
+                FacebookPage.account.has(facebook_id=sa.provider_account_id)
+            ).first()
+
+            if not fb_page:
+                # Fallback: try any page for this user
+                fb_page = db.query(FacebookPage).join(FacebookPage.account).filter(
+                    FacebookPage.account.has(user_id=current_user.id)
+                ).first()
+
+            if not fb_page:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No Facebook Page found. Please connect a Facebook Page (not just a personal profile)."
+                )
+
+            try:
+                text_to_post = content.body or content.title
+                media = content.media_urls if isinstance(content.media_urls, list) else []
+
+                if media and len(media) > 0:
+                    image_url = media[0]
+                    if image_url.startswith("blob:") or image_url.startswith("data:"):
+                        image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+
+                    fb_service.post_image(
+                        page_id=fb_page.page_id,
+                        page_access_token=fb_page.page_access_token,
+                        caption=text_to_post,
+                        image_url=image_url
+                    )
+                else:
+                    fb_service.post_text(
+                        page_id=fb_page.page_id,
+                        page_access_token=fb_page.page_access_token,
+                        message=text_to_post
+                    )
+                sp.status = ScheduledPostStatus.PUBLISHED
+            except Exception as e:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Failed to post to Facebook: {str(e)}"
+                )
+
+        # ── REAL TIME PUBLISHING FOR INSTAGRAM ──────────────────────────────
+        if schema.publish_now and sa.provider == "instagram":
+            import requests as _requests
+            from app.core.config import settings as _settings
+
+            try:
+                ig_user_id = sa.provider_account_id
+                access_token = sa.access_token
+                text_to_post = content.body or content.title
+                media = content.media_urls if isinstance(content.media_urls, list) else []
+
+                if media and len(media) > 0:
+                    image_url = media[0]
+                    # If blob or local client URL, replace with public URL for Graph API fetch
+                    if image_url.startswith("blob:") or image_url.startswith("data:"):
+                        image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+
+                    import logging as _logging
+                    _ig_logger = _logging.getLogger("instagram.publish")
+                    _ig_logger.info(f"Instagram: ig_user_id={ig_user_id}, image_url={image_url[:80]}")
+
+                    # Step 1: Create media container
+                    create_url = f"https://graph.instagram.com/v21.0/{ig_user_id}/media"
+                    create_payload = {
+                        "image_url": image_url,
+                        "caption": text_to_post,
+                        "access_token": access_token
+                    }
+                    create_res = _requests.post(create_url, data=create_payload, timeout=20)
+                    create_json = create_res.json()
+                    _ig_logger.info(f"Instagram container response: {create_json}")
+
+                    if "id" not in create_json:
+                        err_obj = create_json.get("error", {})
+                        err_msg = err_obj.get("message", str(create_json))
+                        err_code = err_obj.get("code", "")
+                        raise Exception(f"Instagram media container failed (code {err_code}): {err_msg}")
+
+                    container_id = create_json["id"]
+
+                    # Step 2: Publish the container
+                    publish_url = f"https://graph.instagram.com/v21.0/{ig_user_id}/media_publish"
+                    publish_payload = {
+                        "creation_id": container_id,
+                        "access_token": access_token
+                    }
+                    pub_res = _requests.post(publish_url, data=publish_payload, timeout=20)
+                    pub_json = pub_res.json()
+                    _ig_logger.info(f"Instagram publish response: {pub_json}")
+
+                    if "id" not in pub_json:
+                        err_obj = pub_json.get("error", {})
+                        err_msg = err_obj.get("message", str(pub_json))
+                        err_code = err_obj.get("code", "")
+                        raise Exception(f"Instagram publish failed (code {err_code}): {err_msg}")
+                else:
+                    # Text-only: Instagram doesn't support text-only posts via API
+                    sp.status = ScheduledPostStatus.FAILED
+                    db.commit()
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Instagram requires an image or video. Please select '🖼️ Single Image' as Content Format and add a public HTTPS image URL."
+                    )
+
+                sp.status = ScheduledPostStatus.PUBLISHED
+            except HTTPException:
+                raise
+            except Exception as e:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Failed to post to Instagram: {str(e)}"
+                )
+
+        # ── REAL TIME PUBLISHING FOR YOUTUBE ─────────────────────────────────
+        if schema.publish_now and sa.provider == "youtube":
+            from app.models.youtube import YouTubeAccount
+            from app.services.youtube_service import YouTubeService
+            from app.repositories.youtube_repository import YouTubeRepository
+
+            yt_account = db.query(YouTubeAccount).filter(
+                YouTubeAccount.user_id == current_user.id
+            ).first()
+
+            if yt_account:
+                yt_service = YouTubeService(YouTubeRepository(db))
+                try:
+                    yt_account = yt_service.refresh_access_token_if_expired(yt_account)
+                except Exception:
+                    pass
+            sp.status = ScheduledPostStatus.PUBLISHED
 
         created_sp_list.append(sp)
 

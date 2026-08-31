@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content, campaigns, analytics, notifications
-from app.api import youtube, facebook, linkedin
+from app.api import youtube, facebook, linkedin, instagram
 from app.models.facebook import FacebookAccount, FacebookPage
 from database.postgresql.connection import init_db
 from database.mongodb.connection import close_mongo_client, get_mongo_client, init_mongo_indexes
@@ -119,6 +119,7 @@ app.include_router(analytics.router)
 app.include_router(youtube.router)
 app.include_router(facebook.router)
 app.include_router(linkedin.router)
+app.include_router(instagram.router)
 app.include_router(notifications.router)
 
 

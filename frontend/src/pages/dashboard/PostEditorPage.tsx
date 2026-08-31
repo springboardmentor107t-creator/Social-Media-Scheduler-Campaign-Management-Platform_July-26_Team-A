@@ -374,6 +374,47 @@ export default function PostEditorPage() {
                     </p>
                   </label>
 
+                  {/* Public URL Input for Instagram/Facebook */}
+                  <div className="mt-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--ink-muted)" }}>
+                      — or paste a public image / video URL —
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        id="media-url-input"
+                        type="url"
+                        placeholder="https://example.com/image.jpg"
+                        className="input-field w-full text-xs"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = (e.target as HTMLInputElement).value.trim();
+                            if (val.startsWith("http")) {
+                              setMediaUrls((prev) => [...prev, val]);
+                              (e.target as HTMLInputElement).value = "";
+                            }
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-outline-soft text-xs px-3 py-2 whitespace-nowrap"
+                        onClick={() => {
+                          const input = document.getElementById("media-url-input") as HTMLInputElement;
+                          const val = input?.value?.trim();
+                          if (val && val.startsWith("http")) {
+                            setMediaUrls((prev) => [...prev, val]);
+                            input.value = "";
+                          }
+                        }}
+                      >
+                        Add URL
+                      </button>
+                    </div>
+                    <p className="text-[11px] mt-1" style={{ color: "#f59e0b" }}>
+                      ⚠️ Instagram &amp; Facebook require a <strong>public HTTPS URL</strong>. Local file uploads won't work for live publishing.
+                    </p>
+                  </div>
+
                   {/* Local Storage Banner Notice */}
                   <div className="mt-3 p-2.5 rounded-lg text-[11px]" style={{ background: "rgba(69,222,196,0.06)", color: "var(--ink-muted)" }}>
                     ℹ️ <strong>Local Preview Mode:</strong> Media files are loaded into local object URLs for live UI previewing. Connect an S3/Cloudinary backend for production storage.

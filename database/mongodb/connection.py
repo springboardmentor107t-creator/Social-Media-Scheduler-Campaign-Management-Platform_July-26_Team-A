@@ -25,7 +25,7 @@ def get_mongo_client() -> AsyncIOMotorClient:
 
 
 async def get_mongo_db() -> AsyncIOMotorDatabase:
-    db_name = os.getenv("MONGO_DB", "socialpilot")
+    db_name = os.getenv("MONGO_DB") or "socialpilot_db"
     return client[db_name]
 
 

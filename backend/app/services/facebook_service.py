@@ -14,24 +14,30 @@ class FacebookService:
 
     def get_auth_url(self, state: str) -> str:
         """
-        Build Facebook OAuth Authorization URL with required scopes.
-        Scopes: pages_show_list, pages_manage_posts, pages_read_engagement, public_profile, email
+        Build Facebook OAuth Authorization URL.
+        Uses config_id (Facebook Login for Business) if configured, otherwise falls back to scope query parameter.
         """
         base_url = f"https://www.facebook.com/{settings.FACEBOOK_API_VERSION}/dialog/oauth"
-        scopes = [
-            "pages_show_list",
-            "pages_manage_posts",
-            "pages_read_engagement",
-            "public_profile",
-            "email"
-        ]
         params = {
             "client_id": settings.FACEBOOK_APP_ID,
             "redirect_uri": settings.FACEBOOK_REDIRECT_URI,
             "state": state,
-            "scope": ",".join(scopes),
             "response_type": "code"
         }
+        if settings.FACEBOOK_CONFIG_ID:
+            params["config_id"] = settings.FACEBOOK_CONFIG_ID
+            params["override_default_response_type"] = "true"
+        else:
+            scopes = [
+                "pages_show_list",
+                "pages_manage_posts",
+                "pages_read_engagement",
+                "public_profile",
+                "email",
+                "instagram_basic",
+                "instagram_content_publish"
+            ]
+            params["scope"] = ",".join(scopes)
         return f"{base_url}?{urllib.parse.urlencode(params)}"
 
     def exchange_code(self, code: str) -> dict:
@@ -93,11 +99,11 @@ class FacebookService:
     def fetch_user_pages(self, user_access_token: str) -> List[dict]:
         """
         Fetch all Facebook Pages managed by user from /me/accounts endpoint.
-        Includes Page ID, Page Name, Page Access Token, Category.
+        Includes Page ID, Page Name, Page Access Token, Category, and linked Instagram Business Account if present.
         """
         url = f"https://graph.facebook.com/{settings.FACEBOOK_API_VERSION}/me/accounts"
         params = {
-            "fields": "id,name,access_token,category",
+            "fields": "id,name,access_token,category,instagram_business_account{id,username,name}",
             "access_token": user_access_token
         }
         try:
@@ -112,12 +118,20 @@ class FacebookService:
             
             pages_list = []
             for item in data.get("data", []):
-                pages_list.append({
+                page_info = {
                     "page_id": item.get("id"),
                     "page_name": item.get("name"),
                     "page_access_token": item.get("access_token"),
                     "category": item.get("category")
-                })
+                }
+                ig_acc = item.get("instagram_business_account")
+                if ig_acc:
+                    page_info["instagram_business_account"] = {
+                        "id": ig_acc.get("id"),
+                        "username": ig_acc.get("username"),
+                        "name": ig_acc.get("name")
+                    }
+                pages_list.append(page_info)
             return pages_list
         except requests.RequestException as e:
             raise HTTPException(

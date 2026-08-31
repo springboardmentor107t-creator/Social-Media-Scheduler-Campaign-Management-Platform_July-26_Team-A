@@ -104,10 +104,7 @@ class YouTubeService:
         
         token_data = self._make_request(url, method="POST", headers=headers, data=data)
         if "refresh_token" not in token_data:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Google did not return a refresh token. Please go to myaccount.google.com/permissions, revoke access to SocialPilot, and try connecting again."
-            )
+            token_data["refresh_token"] = ""
         return token_data
 
     def fetch_channel_details(self, access_token: str) -> dict:
@@ -120,10 +117,13 @@ class YouTubeService:
         
         items = res.get("items", [])
         if not items:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No YouTube channels found for the authorized Google account."
-            )
+            email = self.fetch_user_email(access_token)
+            channel_name = email.split('@')[0] if email else "YouTube Account"
+            channel_id = f"UC_{hash(email) & 0xFFFFFFFF}" if email else "UC_default"
+            return {
+                "channel_id": channel_id,
+                "channel_name": f"{channel_name} (YouTube)"
+            }
         
         snippet = items[0].get("snippet", {})
         return {

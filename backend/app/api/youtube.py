@@ -1,9 +1,12 @@
 import uuid
 import urllib.parse
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List
 from uuid import UUID
 from jose import jwt
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import RedirectResponse
@@ -88,27 +91,36 @@ def youtube_callback(
 
     # Decode and validate state parameter
     try:
-        state_payload = jwt.decode(state, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        # jose may return str or bytes depending on version
+        state_str = state.decode("utf-8") if isinstance(state, bytes) else state
+        state_payload = jwt.decode(state_str, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         user_id_str = state_payload.get("sub")
         if not user_id_str:
             raise ValueError("State payload is missing subject claim")
         user_id = UUID(user_id_str)
-    except Exception:
+        logger.info(f"YouTube callback: state decoded OK, user_id={user_id}")
+    except Exception as state_err:
+        logger.error(f"YouTube callback: state validation failed: {state_err}")
         return RedirectResponse(f"{frontend_url}?error=Invalid%20or%20expired%20OAuth%20state&platform=youtube")
 
     # Perform OAuth code exchange and API sync
     try:
+        logger.info("YouTube callback: exchanging auth code for tokens...")
         token_data = youtube_service.exchange_code(code)
         access_token = token_data["access_token"]
-        refresh_token = token_data.get("refresh_token")
+        refresh_token = token_data.get("refresh_token") or ""
         expires_in = token_data.get("expires_in", 3600)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        logger.info("YouTube callback: token exchange OK")
 
         # Retrieve YouTube Channel info and Google email
+        logger.info("YouTube callback: fetching channel details...")
         channel_details = youtube_service.fetch_channel_details(access_token)
         email = youtube_service.fetch_user_email(access_token)
+        logger.info(f"YouTube callback: channel={channel_details['channel_name']}, email={email}")
 
         # Save to database (YouTubeAccount)
+        logger.info("YouTube callback: saving to youtube_accounts table...")
         youtube_service.repository.create_or_update(
             user_id=user_id,
             channel_id=channel_details["channel_id"],
@@ -118,6 +130,7 @@ def youtube_callback(
             refresh_token=refresh_token,
             expires_at=expires_at
         )
+        logger.info("YouTube callback: youtube_accounts saved OK")
 
         # Save to general SocialAccount table as well
         social_acc = db.query(SocialAccount).filter(
@@ -143,11 +156,14 @@ def youtube_callback(
             )
             db.add(social_acc)
         db.commit()
+        logger.info("YouTube callback: social_accounts saved OK - DONE")
 
         return RedirectResponse(f"{frontend_url}?success=true&platform=youtube")
     except HTTPException as e:
+        logger.error(f"YouTube callback HTTPException: {e.status_code} {e.detail}")
         return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(e.detail)}&platform=youtube")
     except Exception as e:
+        logger.error(f"YouTube callback unexpected error: {type(e).__name__}: {e}", exc_info=True)
         return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(str(e))}&platform=youtube")
 
 

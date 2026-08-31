@@ -1,0 +1,31 @@
+# Fix LinkedIn and YouTube Connection Flow Redirects
+
+Correct the `FRONTEND_URL` environment variable configuration in the backend from port `5174` to `5173` to match the active Vite development server port. This ensures that after completing OAuth for LinkedIn or YouTube, the callback redirects the user back to the logged-in frontend session on port `5173` instead of a non-existent port `5174`.
+
+For the Google OAuth warning screen shown in the screenshot, this is a standard Google security warning for apps currently in development/testing mode. To bypass it:
+1. Click the **Advanced** link on the bottom left.
+2. Click **Go to socialpilot.app (unsafe)** (or similar redirect link) to proceed.
+
+## Proposed Changes
+
+### Configuration
+
+#### [MODIFY] [.env](file:///c:/Users/Solitude/Documents/INFOSYS/Social-Media-Scheduler-Campaign-Management-Platform_July-26_Team-A/backend/.env)
+- Update `FRONTEND_URL` from `http://localhost:5174` to `http://localhost:5173`.
+
+#### [MODIFY] [.env.example](file:///c:/Users/Solitude/Documents/INFOSYS/Social-Media-Scheduler-Campaign-Management-Platform_July-26_Team-A/backend/.env.example)
+- Add `FRONTEND_URL=http://localhost:5173` to the example file.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run `pytest tests/test_linkedin.py` and `pytest tests/test_youtube.py` (if available) to ensure backend integrations still build and pass unit tests.
+
+### Manual Verification
+- Run a browser subagent to:
+  1. Open `http://localhost:5173/login`.
+  2. Log in using sample credentials (`alice@example.com` / `password123`).
+  3. Navigate to `http://localhost:5173/dashboard/connect?success=true&platform=linkedin` to verify LinkedIn card connects successfully.
+  4. Navigate to `http://localhost:5173/dashboard/connect?success=true&platform=youtube` to verify YouTube card connects successfully.

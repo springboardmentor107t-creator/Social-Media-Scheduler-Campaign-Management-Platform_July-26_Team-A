@@ -129,6 +129,48 @@ export default function ConnectPage() {
       } catch (err) {
         console.error("Failed to fetch real LinkedIn status:", err);
       }
+
+      // Fetch real Facebook status
+      try {
+        const fbStatus = await apiFetch<{
+          connected: boolean;
+          accounts: Array<{ facebook_id: string; name: string; email?: string }>;
+        }>("/facebook/status");
+        
+        const fbIdx = data.findIndex(a => a.platform === "facebook");
+        if (fbIdx !== -1) {
+          if (fbStatus.connected && fbStatus.accounts.length > 0) {
+            data[fbIdx].status = "connected";
+            data[fbIdx].handle = fbStatus.accounts[0].name;
+          } else {
+            data[fbIdx].status = "disconnected";
+            data[fbIdx].handle = undefined;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch real Facebook status:", err);
+      }
+
+      // Fetch real Instagram status
+      try {
+        const igStatus = await apiFetch<{
+          connected: boolean;
+          accounts: Array<{ instagram_id: string; username: string }>;
+        }>("/instagram/status");
+        
+        const igIdx = data.findIndex(a => a.platform === "instagram");
+        if (igIdx !== -1) {
+          if (igStatus.connected && igStatus.accounts.length > 0) {
+            data[igIdx].status = "connected";
+            data[igIdx].handle = igStatus.accounts[0].username;
+          } else {
+            data[igIdx].status = "disconnected";
+            data[igIdx].handle = undefined;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch real Instagram status:", err);
+      }
       setAccounts(data);
     } finally {
       if (isSyncAction) setSyncing(false); else setLoading(false);
@@ -138,7 +180,7 @@ export default function ConnectPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const platform = params.get("platform");
-    const platLabel = platform === "linkedin" ? "LinkedIn" : platform === "youtube" ? "YouTube" : "Account";
+    const platLabel = platform === "linkedin" ? "LinkedIn" : platform === "youtube" ? "YouTube" : platform === "facebook" ? "Facebook" : "Account";
     if (params.get("success") === "true") {
       showToast(`${platLabel} account connected successfully!`);
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -173,6 +215,24 @@ export default function ConnectPage() {
       window.location.href = `http://127.0.0.1:8000/api/auth/linkedin/login?token=${encodeURIComponent(token)}`;
       return;
     }
+    if (platform === "facebook") {
+      const token = getAccessToken();
+      if (!token) {
+        showToast("You must be logged in to connect a Facebook account.");
+        return;
+      }
+      window.location.href = `http://127.0.0.1:8000/auth/facebook/login?token=${encodeURIComponent(token)}`;
+      return;
+    }
+    if (platform === "instagram") {
+      const token = getAccessToken();
+      if (!token) {
+        showToast("You must be logged in to connect an Instagram account.");
+        return;
+      }
+      window.location.href = `http://127.0.0.1:8000/auth/instagram/login?token=${encodeURIComponent(token)}`;
+      return;
+    }
     showToast(`OAuth for ${platform} is not yet available — coming soon.`);
   };
 
@@ -197,6 +257,22 @@ export default function ConnectPage() {
           )
         );
         showToast("LinkedIn account disconnected.");
+      } else if (target.platform === "facebook") {
+        await apiFetch("/facebook/disconnect", { method: "DELETE" });
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.platform === "facebook" ? { ...a, status: "disconnected", handle: undefined } : a
+          )
+        );
+        showToast("Facebook account disconnected.");
+      } else if (target.platform === "instagram") {
+        await apiFetch("/instagram/disconnect", { method: "DELETE" });
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.platform === "instagram" ? { ...a, status: "disconnected", handle: undefined } : a
+          )
+        );
+        showToast("Instagram account disconnected.");
       } else {
         await disconnectAccount(target.platform);
         setAccounts((prev) =>
@@ -224,7 +300,7 @@ export default function ConnectPage() {
             </p>
             {/* STUB notice */}
             <p className="text-xs mt-1 font-semibold" style={{ color: "#f59e0b" }}>
-              ⚠ OAuth backends for YouTube and LinkedIn are LIVE. Other platform integrations are simulated.
+              ⚠ OAuth backends for YouTube, LinkedIn, Facebook, and Instagram are LIVE.
             </p>
           </div>
           <button
