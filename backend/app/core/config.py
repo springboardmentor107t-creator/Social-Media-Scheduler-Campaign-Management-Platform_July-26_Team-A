@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     LINKEDIN_REDIRECT_URI: str = os.getenv("LINKEDIN_REDIRECT_URI", "http://localhost:8000/auth/linkedin/callback")
 
     class Config:
-        env_file = ".env"
+        env_file = ("backend/.env", ".env")
         extra = "ignore"
 
 

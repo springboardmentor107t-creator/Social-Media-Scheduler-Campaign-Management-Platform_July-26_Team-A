@@ -10,7 +10,7 @@ import DashboardShell, { type NavItem } from "../../components/DashboardShell";
 import RoleGate from "../../components/RoleGate";
 import PlatformPreview from "../../components/PlatformPreview";
 import BestTimeToPost from "../../components/BestTimeToPost";
-import { apiFetch } from "../../services/api";
+import { apiFetch, uploadFileApi } from "../../services/api";
 
 const CREATOR_NAV: NavItem[] = [
   { label: "My Dashboard", href: "/dashboard/creator" },
@@ -60,6 +60,7 @@ export default function PostEditorPage() {
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [toast, setToast] = useState("");
   const [validationError, setValidationError] = useState("");
 
@@ -111,11 +112,24 @@ export default function PostEditorPage() {
   }, [id, isEditMode, isDuplicateMode]);
 
   // Handle local file picker / drag-and-drop
-  const handleMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files) return;
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
     const files = Array.from(e.target.files);
-    const newUrls = files.map((file) => URL.createObjectURL(file));
-    setMediaUrls((prev) => [...prev, ...newUrls]);
+    setUploadingMedia(true);
+    showToast("⏳ Uploading media file(s) to server...");
+
+    try {
+      const uploadPromises = files.map((file) => uploadFileApi(file));
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((res) => res.url);
+      setMediaUrls((prev) => [...prev, ...newUrls]);
+      showToast("✅ Media file uploaded successfully!");
+    } catch (err: any) {
+      showToast(`⚠️ Upload failed: ${err.message || err}`);
+    } finally {
+      setUploadingMedia(false);
+      e.target.value = "";
+    }
   };
 
   const removeMedia = (index: number) => {
@@ -365,25 +379,38 @@ export default function PostEditorPage() {
                       accept="image/*,video/*"
                       multiple={contentType === "carousel"}
                       onChange={handleMediaUpload}
+                      disabled={uploadingMedia}
                       className="hidden"
                     />
-                    <div className="text-3xl mb-2">📁</div>
-                    <p className="text-xs font-semibold">Click to select or drag & drop media files</p>
+                    <div className="text-3xl mb-2">{uploadingMedia ? "⏳" : "📁"}</div>
+                    <p className="text-xs font-semibold">
+                      {uploadingMedia ? "Uploading file to backend..." : "Click to select or drag & drop video / image file"}
+                    </p>
                     <p className="text-[11px] mt-1" style={{ color: "var(--ink-muted)" }}>
-                      Supports PNG, JPG, MP4 · Up to 50MB
+                      {uploadingMedia ? "Please wait a moment..." : "Files upload directly to server static storage (PNG, JPG, MP4, MOV, WEBM)"}
                     </p>
                   </label>
 
-                  {/* Public URL Input for Instagram/Facebook */}
+                  {/* Public URL Input — optional alternative */}
                   <div className="mt-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider mb-1.5" style={{ color: "var(--ink-muted)" }}>
-                      — or paste a public image / video URL —
+                      — or paste an external video / image URL —
                     </p>
+
+                    {/* YouTube-specific callout when video type is selected */}
+                    {contentType === "video" && (
+                      <div className="mb-2 p-2.5 rounded-lg text-[11px] font-semibold" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)", color: "#047857" }}>
+                        🎬 <strong>Local Upload &amp; Public Video URLs Supported</strong><br />
+                        You can select a video file from your computer above <strong>OR</strong> paste a video URL below.<br />
+                        <span style={{ color: "#4b5563", fontWeight: 400 }}>Test sample video: <code style={{ userSelect: "all" }}>https://www.w3schools.com/html/mov_bbb.mp4</code></span>
+                      </div>
+                    )}
+
                     <div className="flex gap-2">
                       <input
                         id="media-url-input"
                         type="url"
-                        placeholder="https://example.com/image.jpg"
+                        placeholder={contentType === "video" ? "https://www.w3schools.com/html/mov_bbb.mp4" : "https://example.com/image.jpg"}
                         className="input-field w-full text-xs"
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
@@ -391,52 +418,64 @@ export default function PostEditorPage() {
                             if (val.startsWith("http")) {
                               setMediaUrls((prev) => [...prev, val]);
                               (e.target as HTMLInputElement).value = "";
+                              showToast("✅ URL added to media list!");
                             }
                           }
                         }}
                       />
                       <button
                         type="button"
-                        className="btn-outline-soft text-xs px-3 py-2 whitespace-nowrap"
+                        className="btn-primary-teal text-xs px-3 py-2 whitespace-nowrap"
                         onClick={() => {
                           const input = document.getElementById("media-url-input") as HTMLInputElement;
                           const val = input?.value?.trim();
                           if (val && val.startsWith("http")) {
                             setMediaUrls((prev) => [...prev, val]);
                             input.value = "";
+                            showToast("✅ URL added! Now click Publish Now.");
+                          } else {
+                            showToast("⚠️ Please enter a valid http(s) URL first.");
                           }
                         }}
                       >
-                        Add URL
+                        ＋ Add URL
                       </button>
                     </div>
-                    <p className="text-[11px] mt-1" style={{ color: "#f59e0b" }}>
-                      ⚠️ Instagram &amp; Facebook require a <strong>public HTTPS URL</strong>. Local file uploads won't work for live publishing.
-                    </p>
                   </div>
 
-                  {/* Local Storage Banner Notice */}
-                  <div className="mt-3 p-2.5 rounded-lg text-[11px]" style={{ background: "rgba(69,222,196,0.06)", color: "var(--ink-muted)" }}>
-                    ℹ️ <strong>Local Preview Mode:</strong> Media files are loaded into local object URLs for live UI previewing. Connect an S3/Cloudinary backend for production storage.
-                  </div>
-
-                  {/* Image Thumbnails */}
+                  {/* Uploaded Media List */}
                   {mediaUrls.length > 0 && (
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      {mediaUrls.map((url, idx) => (
-                        <div key={idx} className="relative w-20 h-20 rounded-lg overflow-hidden border" style={{ borderColor: "var(--line)" }}>
-                          <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => removeMedia(idx)}
-                            className="absolute top-1 right-1 bg-black/70 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
+                    <div className="mt-4">
+                      <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--ink-muted)" }}>
+                        Selected Media Files ({mediaUrls.length})
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        {mediaUrls.map((url, idx) => {
+                          const isVideo = url.endsWith(".mp4") || url.endsWith(".mov") || url.endsWith(".webm") || url.endsWith(".avi") || contentType === "video";
+                          return (
+                            <div key={idx} className="relative w-28 h-20 rounded-lg overflow-hidden border bg-black/10 flex items-center justify-center" style={{ borderColor: "var(--line)" }}>
+                              {isVideo ? (
+                                <video src={url} className="w-full h-full object-cover" controls={false} />
+                              ) : (
+                                <img src={url} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeMedia(idx)}
+                                className="absolute top-1 right-1 bg-black/70 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                              >
+                                ✕
+                              </button>
+                              <div className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded font-mono truncate max-w-[90%]">
+                                {isVideo ? "🎬 Video" : "🖼️ Image"}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
+
                 </div>
               )}
 

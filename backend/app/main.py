@@ -3,6 +3,7 @@ import sys
 import time
 import logging
 import datetime
+# Force uvicorn reload with new env settings
 
 # Add root workspace directory to sys.path to support database imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -10,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content, campaigns, analytics, notifications
@@ -121,6 +123,11 @@ app.include_router(facebook.router)
 app.include_router(linkedin.router)
 app.include_router(instagram.router)
 app.include_router(notifications.router)
+
+# ── Static File Mount for Uploaded Media ─────────────────────────────────────
+uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 
 # ── Startup ───────────────────────────────────────────────────────────────────

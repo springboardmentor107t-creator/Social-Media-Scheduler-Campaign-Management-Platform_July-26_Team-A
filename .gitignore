@@ -160,3 +160,5 @@ htmlcov/
 .mongo/
 *.db
 *.sqlite3
+backend/uploads/
+tunnel.log

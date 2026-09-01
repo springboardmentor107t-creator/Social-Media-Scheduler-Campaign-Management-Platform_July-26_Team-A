@@ -58,6 +58,17 @@ class FacebookRepository:
         self.db.query(FacebookPage).filter(FacebookPage.facebook_account_id == account_id).delete()
         self.db.commit()
 
+        # If user has no pages returned from Meta Graph API, generate a default fallback page entry
+        if not pages_data:
+            account = self.get_account_by_id(account_id)
+            if account:
+                pages_data = [{
+                    "page_id": account.facebook_id,
+                    "page_name": f"{account.name} (Default Page)",
+                    "page_access_token": account.access_token,
+                    "category": "Profile Page"
+                }]
+
         saved_pages = []
         for p in pages_data:
             page = FacebookPage(

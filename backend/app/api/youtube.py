@@ -113,11 +113,28 @@ def youtube_callback(
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
         logger.info("YouTube callback: token exchange OK")
 
-        # Retrieve YouTube Channel info and Google email
-        logger.info("YouTube callback: fetching channel details...")
-        channel_details = youtube_service.fetch_channel_details(access_token)
+        # Retrieve Google user email first (uses userinfo API, always available)
+        logger.info("YouTube callback: fetching user email...")
         email = youtube_service.fetch_user_email(access_token)
-        logger.info(f"YouTube callback: channel={channel_details['channel_name']}, email={email}")
+        logger.info(f"YouTube callback: email={email}")
+
+        # Try to retrieve YouTube Channel info — may fail if YouTube Data API
+        # is not enabled or the account has no channel; fall back to email-based identity
+        logger.info("YouTube callback: fetching channel details...")
+        try:
+            channel_details = youtube_service.fetch_channel_details(access_token)
+        except Exception as channel_err:
+            logger.warning(
+                f"YouTube callback: fetch_channel_details failed ({type(channel_err).__name__}: {channel_err}). "
+                "Falling back to email-based identity."
+            )
+            # Build a fallback identity from the email so we can still save the account
+            safe_email = email or "unknown"
+            channel_name = safe_email.split("@")[0] + " (YouTube)"
+            channel_id = f"UC_{abs(hash(safe_email)) & 0xFFFFFFFF:08x}"
+            channel_details = {"channel_id": channel_id, "channel_name": channel_name}
+
+        logger.info(f"YouTube callback: channel_id={channel_details['channel_id']}, channel_name={channel_details['channel_name']}")
 
         # Save to database (YouTubeAccount)
         logger.info("YouTube callback: saving to youtube_accounts table...")
@@ -160,8 +177,10 @@ def youtube_callback(
 
         return RedirectResponse(f"{frontend_url}?success=true&platform=youtube")
     except HTTPException as e:
-        logger.error(f"YouTube callback HTTPException: {e.status_code} {e.detail}")
-        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(e.detail)}&platform=youtube")
+        # e.detail may be a dict (Google error JSON) — stringify before quoting
+        detail_str = e.detail if isinstance(e.detail, str) else str(e.detail)
+        logger.error(f"YouTube callback HTTPException: {e.status_code} {detail_str}", exc_info=True)
+        return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(detail_str)}&platform=youtube")
     except Exception as e:
         logger.error(f"YouTube callback unexpected error: {type(e).__name__}: {e}", exc_info=True)
         return RedirectResponse(f"{frontend_url}?error={urllib.parse.quote(str(e))}&platform=youtube")

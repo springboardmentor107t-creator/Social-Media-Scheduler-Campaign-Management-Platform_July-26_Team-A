@@ -1,8 +1,10 @@
+import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
@@ -17,9 +19,37 @@ from database.postgresql.models import (
     User,
     UserRole,
 )
+from app.core.config import settings
 from app.presentation.dependencies.auth import RBACException, get_current_user, require_min_role, require_owner_or_role
 
 router = APIRouter(tags=["Content & Scheduling"])
+
+
+@router.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload a local file (video/image) to the server.
+    Returns a hosted static URL (http://localhost:8000/uploads/...) accessible by YouTube/Facebook publishing.
+    """
+    uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads"))
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    file_ext = os.path.splitext(file.filename)[1] if file.filename else ""
+    safe_filename = f"{uuid.uuid4().hex}{file_ext}"
+    dest_path = os.path.join(uploads_dir, safe_filename)
+
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    url = f"http://localhost:8000/uploads/{safe_filename}"
+    return {
+        "url": url,
+        "filename": file.filename,
+        "media_url": url
+    }
 
 
 @router.get("/social-accounts")
@@ -518,7 +548,7 @@ def schedule_posts(
 
         # ── REAL TIME PUBLISHING FOR FACEBOOK ───────────────────────────────
         if schema.publish_now and sa.provider == "facebook":
-            from app.models.facebook import FacebookPage
+            from app.models.facebook import FacebookPage, FacebookAccount
             from app.services.facebook_service import FacebookService
             from app.repositories.facebook_repository import FacebookRepository
 
@@ -538,6 +568,23 @@ def schedule_posts(
                 ).first()
 
             if not fb_page:
+                # Fallback: find FacebookAccount and create default FacebookPage record
+                fb_acc = db.query(FacebookAccount).filter(
+                    FacebookAccount.user_id == current_user.id
+                ).first()
+                if fb_acc:
+                    fb_page = FacebookPage(
+                        facebook_account_id=fb_acc.id,
+                        page_id=fb_acc.facebook_id,
+                        page_name=f"{fb_acc.name} (Default Page)",
+                        page_access_token=fb_acc.access_token,
+                        category="Profile Page"
+                    )
+                    db.add(fb_page)
+                    db.commit()
+                    db.refresh(fb_page)
+
+            if not fb_page:
                 sp.status = ScheduledPostStatus.FAILED
                 db.commit()
                 raise HTTPException(
@@ -550,9 +597,16 @@ def schedule_posts(
                 media = content.media_urls if isinstance(content.media_urls, list) else []
 
                 if media and len(media) > 0:
-                    image_url = media[0]
-                    if image_url.startswith("blob:") or image_url.startswith("data:"):
-                        image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+                    raw_url = media[0]
+                    image_url = raw_url
+                    if raw_url.startswith("blob:") or raw_url.startswith("data:") or "localhost" in raw_url or "127.0.0.1" in raw_url:
+                        tunnel_url = settings.FACEBOOK_REDIRECT_URI
+                        if tunnel_url and tunnel_url.startswith("https://") and "/uploads/" in raw_url:
+                            base_tunnel = tunnel_url.split("/auth/")[0]
+                            filename = raw_url.split("/uploads/")[-1]
+                            image_url = f"{base_tunnel}/uploads/{filename}"
+                        else:
+                            image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
 
                     fb_service.post_image(
                         page_id=fb_page.page_id,
@@ -570,9 +624,18 @@ def schedule_posts(
             except Exception as e:
                 sp.status = ScheduledPostStatus.FAILED
                 db.commit()
+                err_str = str(e)
+                if "200" in err_str or "pages_manage_posts" in err_str or "admin" in err_str:
+                    err_msg = (
+                        "Meta API Limitation: Meta (Facebook) does not permit API posting to personal user profiles. "
+                        "To publish posts on Facebook, please create a Facebook Page (https://facebook.com/pages/create) "
+                        "and reconnect your Facebook account in Connect Accounts."
+                    )
+                else:
+                    err_msg = f"Failed to post to Facebook: {err_str}"
                 raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Failed to post to Facebook: {str(e)}"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=err_msg
                 )
 
         # ── REAL TIME PUBLISHING FOR INSTAGRAM ──────────────────────────────
@@ -587,10 +650,16 @@ def schedule_posts(
                 media = content.media_urls if isinstance(content.media_urls, list) else []
 
                 if media and len(media) > 0:
-                    image_url = media[0]
-                    # If blob or local client URL, replace with public URL for Graph API fetch
-                    if image_url.startswith("blob:") or image_url.startswith("data:"):
-                        image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
+                    raw_url = media[0]
+                    image_url = raw_url
+                    if raw_url.startswith("blob:") or raw_url.startswith("data:") or "localhost" in raw_url or "127.0.0.1" in raw_url:
+                        tunnel_url = _settings.INSTAGRAM_REDIRECT_URI or _settings.FACEBOOK_REDIRECT_URI
+                        if tunnel_url and tunnel_url.startswith("https://") and "/uploads/" in raw_url:
+                            base_tunnel = tunnel_url.split("/auth/")[0]
+                            filename = raw_url.split("/uploads/")[-1]
+                            image_url = f"{base_tunnel}/uploads/{filename}"
+                        else:
+                            image_url = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800"
 
                     import logging as _logging
                     _ig_logger = _logging.getLogger("instagram.publish")
@@ -660,13 +729,71 @@ def schedule_posts(
                 YouTubeAccount.user_id == current_user.id
             ).first()
 
-            if yt_account:
-                yt_service = YouTubeService(YouTubeRepository(db))
-                try:
-                    yt_account = yt_service.refresh_access_token_if_expired(yt_account)
-                except Exception:
-                    pass
-            sp.status = ScheduledPostStatus.PUBLISHED
+            if not yt_account:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="YouTube account not connected. Please connect your YouTube account first from Connect Accounts."
+                )
+
+            yt_service = YouTubeService(YouTubeRepository(db))
+
+            # Silently refresh token if expired before uploading
+            try:
+                yt_account = yt_service.refresh_access_token_if_expired(yt_account)
+            except Exception as refresh_err:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=f"YouTube token expired and could not be refreshed. Please reconnect your account. ({refresh_err})"
+                )
+
+            # YouTube requires a video file — check media_urls for a valid video URL
+            media_urls = content.media_urls if isinstance(content.media_urls, list) else []
+            video_url = None
+            for url in media_urls:
+                if url and url.startswith(("http://", "https://")):
+                    video_url = url
+                    break
+
+            if not video_url:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "YouTube requires a video file. Please add a public HTTPS video URL "
+                        "(e.g. .mp4, .mov, .webm) to the media URLs field and select "
+                        "'🎥 Video' as content format."
+                    )
+                )
+
+            try:
+                title = content.title or "Untitled Video"
+                description = content.body or ""
+                result = yt_service.publish_video(
+                    access_token=yt_account.access_token,
+                    title=title,
+                    description=description,
+                    video_url=video_url,
+                    privacy_status="public",
+                )
+                sp.status = ScheduledPostStatus.PUBLISHED
+                # Store the YouTube video URL in the scheduled post for reference
+                sp.recurrence_rule = result.get("video_url")  # re-use field to store video URL
+            except HTTPException:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise
+            except Exception as e:
+                sp.status = ScheduledPostStatus.FAILED
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Failed to upload video to YouTube: {str(e)}"
+                )
 
         created_sp_list.append(sp)
 

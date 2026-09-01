@@ -167,3 +167,28 @@ export async function apiFetch<T = unknown>(
   }
   return response.text() as unknown as Promise<T>;
 }
+
+// ─── File Upload Helper ─────────────────────────────────────────────────────
+
+export async function uploadFileApi(file: File): Promise<{ url: string; filename: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const token = getAccessToken();
+
+  const res = await fetch(`${API_BASE}/api/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    let detail = "Upload failed";
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch {}
+    throw new Error(detail);
+  }
+
+  return res.json();
+}

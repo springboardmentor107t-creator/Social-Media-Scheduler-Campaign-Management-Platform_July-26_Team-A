@@ -1,6 +1,10 @@
 import json
+import os
+import logging
+import tempfile
 import urllib.request
 import urllib.parse
+import urllib.error
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from fastapi import HTTPException, status
@@ -8,6 +12,8 @@ from fastapi import HTTPException, status
 from app.core.config import settings
 from app.models.youtube import YouTubeAccount
 from app.repositories.youtube_repository import YouTubeRepository
+
+logger = logging.getLogger(__name__)
 
 class YouTubeService:
     def __init__(self, repository: YouTubeRepository):
@@ -217,3 +223,201 @@ class YouTubeService:
                 pass
                 
         self.repository.delete(account)
+
+    # ── Video Publishing ───────────────────────────────────────────────────────
+
+    def publish_video(
+        self,
+        access_token: str,
+        title: str,
+        description: str,
+        video_url: str,
+        privacy_status: str = "public",
+        category_id: str = "22",   # 22 = People & Blogs
+    ) -> dict:
+        """
+        Upload a video to YouTube via the Data API v3 resumable upload.
+
+        Steps:
+        1. Validate the video_url (must be a direct HTTP/HTTPS link to a video file).
+        2. Download the video to a temporary file.
+        3. Initiate a resumable-upload session → get an upload URL from Google.
+        4. Stream the file to the upload URL.
+        5. Return {video_id, video_url, title}.
+
+        Supported privacy_status values: "public", "unlisted", "private"
+        Category IDs: 1=Film, 10=Music, 17=Sports, 22=People&Blogs, 24=Entertainment, 28=Science
+        """
+        # ── Validate URL ──────────────────────────────────────────────────────
+        if not video_url or not video_url.startswith(("http://", "https://")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "YouTube requires a direct video file URL (e.g. .mp4, .mov). "
+                    "Blob URLs and data URLs are not supported. "
+                    "Please provide a public HTTPS URL pointing to a video file."
+                )
+            )
+
+        # ── Check if video is a locally uploaded file ──────────────────────────
+        tmp_path = None
+        is_temp = True
+        
+        local_disk_path = None
+        if "/uploads/" in video_url:
+            filename = video_url.split("/uploads/")[-1]
+            uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads"))
+            possible_path = os.path.join(uploads_dir, filename)
+            if os.path.exists(possible_path):
+                local_disk_path = possible_path
+
+        try:
+            if local_disk_path:
+                logger.info(f"YouTube publish_video: using local uploaded file {local_disk_path}")
+                tmp_path = local_disk_path
+                is_temp = False
+                ext = os.path.splitext(local_disk_path)[1].lower()
+                mime = "video/mp4"
+                if ext in (".mov", ".qt"):
+                    mime = "video/quicktime"
+                elif ext == ".webm":
+                    mime = "video/webm"
+                elif ext == ".avi":
+                    mime = "video/x-msvideo"
+            else:
+                # Detect content-type from URL headers before downloading
+                logger.info(f"YouTube publish_video: downloading from {video_url[:80]}...")
+                head_req = urllib.request.Request(video_url, method="HEAD")
+                try:
+                    with urllib.request.urlopen(head_req, timeout=10) as head_resp:
+                        content_type = head_resp.headers.get("Content-Type", "video/mp4")
+                except Exception:
+                    content_type = "video/mp4"
+
+                # Normalise content-type
+                if "mp4" in content_type:
+                    ext, mime = ".mp4", "video/mp4"
+                elif "quicktime" in content_type or "mov" in content_type:
+                    ext, mime = ".mov", "video/quicktime"
+                elif "webm" in content_type:
+                    ext, mime = ".webm", "video/webm"
+                elif "avi" in content_type:
+                    ext, mime = ".avi", "video/x-msvideo"
+                else:
+                    ext, mime = ".mp4", "video/mp4"
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                    tmp_path = tmp.name
+
+                logger.info(f"YouTube publish_video: saving to temp file {tmp_path} ({mime})")
+                urllib.request.urlretrieve(video_url, tmp_path)
+            
+            file_size = os.path.getsize(tmp_path)
+            logger.info(f"YouTube publish_video: file ready, {file_size} bytes")
+
+            if file_size == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Downloaded video file is empty. Please check the video URL."
+                )
+
+            # ── Step 1: Initiate resumable upload session ─────────────────────
+            logger.info("YouTube publish_video: initiating resumable upload session...")
+            init_url = (
+                "https://www.googleapis.com/upload/youtube/v3/videos"
+                "?uploadType=resumable&part=snippet,status"
+            )
+            metadata = {
+                "snippet": {
+                    "title": title[:100],           # YouTube max title length = 100
+                    "description": (description or "")[:5000],
+                    "categoryId": category_id,
+                },
+                "status": {
+                    "privacyStatus": privacy_status,
+                    "selfDeclaredMadeForKids": False,
+                },
+            }
+            meta_bytes = json.dumps(metadata).encode("utf-8")
+            init_headers = {
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json; charset=UTF-8",
+                "X-Upload-Content-Type": mime,
+                "X-Upload-Content-Length": str(file_size),
+            }
+            init_req = urllib.request.Request(
+                init_url, data=meta_bytes, headers=init_headers, method="POST"
+            )
+            try:
+                with urllib.request.urlopen(init_req, timeout=30) as init_resp:
+                    upload_url = init_resp.headers.get("Location")
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8")
+                try:
+                    err_json = json.loads(err_body)
+                except Exception:
+                    err_json = {"raw": err_body}
+                logger.error(f"YouTube initiate upload failed: {e.code} {err_json}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"YouTube API rejected upload initiation: {err_json}"
+                )
+
+            if not upload_url:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="YouTube API did not return an upload URL."
+                )
+            logger.info(f"YouTube publish_video: upload URL obtained.")
+
+            # ── Step 2: Upload video data ──────────────────────────────────────
+            logger.info(f"YouTube publish_video: uploading {file_size} bytes...")
+            with open(tmp_path, "rb") as video_file:
+                video_bytes = video_file.read()
+
+            upload_headers = {
+                "Content-Type": mime,
+                "Content-Length": str(file_size),
+            }
+            upload_req = urllib.request.Request(
+                upload_url, data=video_bytes, headers=upload_headers, method="PUT"
+            )
+            try:
+                with urllib.request.urlopen(upload_req, timeout=300) as upload_resp:
+                    result_body = upload_resp.read().decode("utf-8")
+                    result = json.loads(result_body) if result_body else {}
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8")
+                try:
+                    err_json = json.loads(err_body)
+                except Exception:
+                    err_json = {"raw": err_body}
+                logger.error(f"YouTube video upload failed: {e.code} {err_json}")
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"YouTube video upload failed: {err_json}"
+                )
+
+            video_id = result.get("id")
+            if not video_id:
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"YouTube upload completed but no video ID returned: {result}"
+                )
+
+            video_url_out = f"https://www.youtube.com/watch?v={video_id}"
+            logger.info(f"YouTube publish_video: SUCCESS! video_id={video_id}, url={video_url_out}")
+            return {
+                "video_id": video_id,
+                "video_url": video_url_out,
+                "title": title,
+                "privacy_status": privacy_status,
+            }
+
+        finally:
+            # Clean up temp file (only if created temporarily)
+            if is_temp and tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
