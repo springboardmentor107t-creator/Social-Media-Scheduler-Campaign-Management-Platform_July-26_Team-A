@@ -4,17 +4,17 @@ A centralized, enterprise-grade social media management platform designed to hel
 
 ---
 
-## 🚀 Milestone 3 Status Dashboard
+## 🚀 Milestone 4 Status Dashboard
 
-Below is the live status dashboard for the **Milestone 3** deliverables. It showcases completed items (green glowing LEDs) and full backend & database integrations.
+Below is the live status dashboard for the **Milestone 4** deliverables. It showcases completed items and full backend, database, and social publishing integrations.
 
-![Milestone 3 Status Dashboard](./docs/milestone1_status.svg)
+![Milestone 4 Status Dashboard](./docs/milestone1_status.svg)
 
 <details open>
 <summary><b>📊 Expand for Detailed Deliverables Breakdown</b></summary>
 <br>
 
-### 🗄️ Database Team (100% Completed)
+### 🗄️ Database & Core Infrastructure (100% Completed)
 - [x] **PostgreSQL & MongoDB Configured** (Containerized orchestration inside `docker-compose.yml`)
 - [x] **Relational & NoSQL Schema Created** (User, SocialAccount, Campaign, Content, ScheduledPost, PublishingLog, Analytics models)
 - [x] **SQLAlchemy ORM & Session Pooling** (Robust connection pooling and session management in `database/postgresql/connection.py`)
@@ -25,19 +25,20 @@ Below is the live status dashboard for the **Milestone 3** deliverables. It show
 - [x] **FastAPI Project Architecture** (Clean Architecture structure in `backend/app/main.py`)
 - [x] **JWT Authentication & Security** (`/register`, `/login`, `/refresh`, token rotation, and bcrypt password hashing)
 - [x] **Role-Based Access Control (RBAC)** (Role enforcement for Admin, Manager/Marketing Team, and Content Creator)
+- [x] **AI-Assisted Copywriting API** (`POST /api/content/ai-suggest` using Gemini Flash 1.5 via OpenRouter, with platform variant generation and CTA link placeholders)
+- [x] **Asynchronous In-App Notification System** (Thread-safe notification dispatching to Managers and Admins on content creation, scheduling, and publishing)
 - [x] **Campaign & Post Scheduling APIs** (`/api/campaigns`, `/api/campaigns/{id}/schedule`, tracking metrics, and status filters in `app/presentation/routes/campaigns.py`)
-- [x] **Real-Time Notification Broadcasting** (Server-Sent Events & background tasks for campaign/post creation alerts)
-- [x] **Account & User Management APIs** (Profile updates, password changes, team governance in `app/presentation/routes/users.py`)
+- [x] **File Upload & Media Endpoints** (`POST /api/upload` storing media assets directly to server static directory)
 - [x] **Swagger & ReDoc Documentation** (Automatically served at `http://localhost:8000/docs`)
 
-### 💻 Frontend Team (100% Completed)
+### 💻 Frontend & Creator Dashboard (100% Completed)
 - [x] **Vite + React + TypeScript Architecture** (Modern, fast frontend application)
-- [x] **Authentication & Role-Based Layouts** (Seamless login/register flows with dynamic role-based sidebar & navigation)
-- [x] **Campaign Management Dashboard** (Full campaign lifecycle control, quick status dropdown switcher, budget tracking, and status filtering)
-- [x] **Live Multi-Platform Post Preview Sandbox** (Real-time preview across Instagram, Facebook, LinkedIn, X/Twitter, YouTube, Pinterest with character limit checks and best-time-to-post recommendations)
-- [x] **Content Calendar & Post Scheduler** (Interactive timeline and post management)
-- [x] **Team Management Page** (Member search with icon alignment, role assignment modal, deactivate/activate toggles, and permissions reference)
-- [x] **Real-Time API & Database Integration** (Centralized `apiFetch` service connected to FastAPI backend)
+- [x] **AI Assist Panel & Hashtag Chips** (Collapsed-by-default AI copywriting assistant with multi-platform variant switching and hashtag insertion)
+- [x] **Creator Dashboard Action Buttons** (Functional draft continuation, recurring post pause/resume, edit, duplicate, and delete actions)
+- [x] **Dynamic Real-Time Draft Integration** (Fetches real saved drafts from `GET /api/content?status=draft` with robust UUID parameter validation)
+- [x] **Interactive Media Library** (Multi-file server upload, asset type/size detection, image & video preview modal, link copying, and direct post-editor integration)
+- [x] **Live Multi-Platform Post Preview Sandbox** (Real-time preview across Instagram, Facebook, LinkedIn, X/Twitter, YouTube, Pinterest)
+- [x] **Campaign Management & Team Governance** (Member directory, role assignments, and permissions reference)
 
 </details>
 
