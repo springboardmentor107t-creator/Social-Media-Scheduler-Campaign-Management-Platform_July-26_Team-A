@@ -18,6 +18,7 @@ import {
 export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<"engagement" | "audience" | "reports" | "roi" | "post-performance">("engagement");
   const [timeframe, setTimeframe] = useState("30d");
+  const [chartType, setChartType] = useState<"line" | "donut" | "pentagon">("donut");
 
   // Data states
   const [engagement, setEngagement] = useState<EngagementData | null>(null);
@@ -151,6 +152,192 @@ export default function AnalyticsPage() {
                 </span>
               );
             })}
+        </div>
+      </div>
+    );
+  };
+
+  // SVG Donut Chart renderer helper
+  const renderDonutChart = (items: Array<{ label: string; value: number; color: string }>) => {
+    if (!items || items.length === 0) return null;
+    const total = items.reduce((acc, item) => acc + item.value, 0);
+    if (total === 0) return null;
+
+    const radius = 70;
+    const strokeWidth = 28;
+    const circumference = 2 * Math.PI * radius;
+    let accumulatedAngle = 0;
+
+    return (
+      <div className="flex flex-col md:flex-row items-center justify-around gap-6 py-4 animate-fade-in">
+        {/* Donut SVG */}
+        <div className="relative w-56 h-56 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 200 200" className="w-full h-full transform -rotate-90 drop-shadow-md">
+            {items.map((item, idx) => {
+              const strokeDasharray = `${(item.value / total) * circumference} ${circumference}`;
+              const strokeDashoffset = -accumulatedAngle;
+              accumulatedAngle += (item.value / total) * circumference;
+
+              return (
+                <circle
+                  key={idx}
+                  cx="100"
+                  cy="100"
+                  r={radius}
+                  fill="transparent"
+                  stroke={item.color}
+                  strokeWidth={strokeWidth}
+                  strokeDasharray={strokeDasharray}
+                  strokeDashoffset={strokeDashoffset}
+                  className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                >
+                  <title>{`${item.label}: ${item.value.toLocaleString()} (${((item.value / total) * 100).toFixed(1)}%)`}</title>
+                </circle>
+              );
+            })}
+          </svg>
+          {/* Inner Donut Center Text */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
+            <span className="text-2xl font-black text-ink-light dark:text-ink-dark">
+              {total.toLocaleString()}
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-light dark:text-muted-dark">
+              Total Breakdown
+            </span>
+          </div>
+        </div>
+
+        {/* Legend Grid */}
+        <div className="grid grid-cols-2 gap-3 max-w-sm w-full">
+          {items.map((item, idx) => {
+            const pct = ((item.value / total) * 100).toFixed(1);
+            return (
+              <div
+                key={idx}
+                className="flex items-center gap-3 p-2.5 rounded-xl border border-line-light dark:border-line-dark bg-canvas-light/40 dark:bg-canvas-dark/40"
+              >
+                <span className="w-3.5 h-3.5 rounded-full shrink-0 shadow-xs" style={{ background: item.color }} />
+                <div className="truncate">
+                  <p className="text-xs font-bold truncate">{item.label}</p>
+                  <p className="text-[11px] font-mono text-muted-light dark:text-muted-dark">
+                    {item.value.toLocaleString()} ({pct}%)
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // SVG Pentagon (5-Vertex Radar) Chart renderer helper
+  const renderPentagonChart = (metrics: Array<{ label: string; value: number; max: number }>) => {
+    if (!metrics || metrics.length < 5) return null;
+    const fiveMetrics = metrics.slice(0, 5);
+    const cx = 160;
+    const cy = 150;
+    const R = 95;
+    const numSides = 5;
+
+    // Calculate vertex angles starting from top (-pi/2)
+    const angles = Array.from({ length: numSides }, (_, i) => -Math.PI / 2 + (i * 2 * Math.PI) / numSides);
+
+    // Helper to get point coordinates
+    const getPoint = (angle: number, radius: number) => ({
+      x: cx + radius * Math.cos(angle),
+      y: cy + radius * Math.sin(angle),
+    });
+
+    // Concentric grid pentagons
+    const gridLevels = [0.25, 0.5, 0.75, 1.0];
+
+    // Polygon points for data
+    const dataPoints = fiveMetrics.map((m, i) => {
+      const ratio = Math.min(Math.max(m.value / (m.max || 1), 0.05), 1.0);
+      return getPoint(angles[i], R * ratio);
+    });
+    const polygonD = dataPoints.map((p, idx) => (idx === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ") + " Z";
+
+    const outerVertices = angles.map((a) => getPoint(a, R));
+
+    return (
+      <div className="flex flex-col lg:flex-row items-center justify-around gap-6 py-4 animate-fade-in">
+        {/* Pentagon SVG Radar */}
+        <div className="relative w-72 h-72 flex items-center justify-center shrink-0">
+          <svg viewBox="0 0 320 300" className="w-full h-full overflow-visible drop-shadow-sm">
+            {/* Concentric Pentagon Grids */}
+            {gridLevels.map((lvl, lIdx) => {
+              const pts = angles.map((a) => getPoint(a, R * lvl));
+              const gridD = pts.map((p, idx) => (idx === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(" ") + " Z";
+              return (
+                <path
+                  key={lIdx}
+                  d={gridD}
+                  fill="none"
+                  stroke="var(--line)"
+                  strokeDasharray={lvl === 1.0 ? "none" : "3 3"}
+                  strokeWidth={lvl === 1.0 ? "1.5" : "1"}
+                />
+              );
+            })}
+
+            {/* Radial Spokes from Center to Pentagon Vertices */}
+            {outerVertices.map((v, i) => (
+              <line key={i} x1={cx} y1={cy} x2={v.x} y2={v.y} stroke="var(--line)" strokeDasharray="3 3" />
+            ))}
+
+            {/* Data Radar Fill Polygon */}
+            <path d={polygonD} fill="var(--teal)" fillOpacity="0.25" stroke="var(--teal)" strokeWidth="3" strokeLinejoin="round" />
+
+            {/* Data Vertex Dots */}
+            {dataPoints.map((p, i) => (
+              <g key={i} className="group cursor-pointer">
+                <circle cx={p.x} cy={p.y} r="6" fill="var(--teal)" className="transition-transform group-hover:scale-150" />
+                <circle cx={p.x} cy={p.y} r="2" fill="#fff" />
+                <title>{`${fiveMetrics[i].label}: ${fiveMetrics[i].value.toLocaleString()}`}</title>
+              </g>
+            ))}
+
+            {/* Pentagon Labels placed radially outside */}
+            {angles.map((a, i) => {
+              const labelRadius = R + 26;
+              const lp = getPoint(a, labelRadius);
+              return (
+                <text
+                  key={i}
+                  x={lp.x}
+                  y={lp.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="text-[11px] font-bold fill-current text-ink-light dark:text-ink-dark"
+                >
+                  {fiveMetrics[i].label}
+                </text>
+              );
+            })}
+          </svg>
+        </div>
+
+        {/* Metric Cards List */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-md w-full">
+          {fiveMetrics.map((m, idx) => {
+            const pct = Math.round((m.value / (m.max || 1)) * 100);
+            return (
+              <div
+                key={idx}
+                className="p-3 rounded-xl border border-line-light dark:border-line-dark bg-canvas-light/40 dark:bg-canvas-dark/40 space-y-1"
+              >
+                <div className="flex justify-between items-center text-xs font-semibold">
+                  <span className="text-muted-light dark:text-muted-dark">{m.label}</span>
+                  <span className="font-mono text-teal-dim font-bold">{m.value.toLocaleString()}</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-line-light dark:bg-line-dark overflow-hidden">
+                  <div className="h-full bg-teal transition-all duration-500" style={{ width: `${Math.min(pct, 100)}%` }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -334,29 +521,108 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
 
-                {/* Engagement Interactive Chart */}
+                {/* Engagement Interactive Chart with Graph Type Controls */}
                 <div className="p-6 rounded-2xl bg-card-light dark:bg-card-dark border border-line-light dark:border-line-dark shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-base font-bold">Engagement Trend Over Time</h3>
-                      <p className="text-xs text-muted-light dark:text-muted-dark">Daily interaction volume (Likes + Comments + Shares)</p>
+                      <h3 className="text-base font-bold">Engagement Analysis & Trend</h3>
+                      <p className="text-xs text-muted-light dark:text-muted-dark">Interaction volume breakdown and performance metrics</p>
                     </div>
-                    <div className="flex items-center gap-4 text-xs">
-                      <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-teal" /> Engagement</span>
+                    {/* Graph Type Switcher Controls */}
+                    <div className="flex items-center gap-1.5 p-1 rounded-xl bg-canvas-light dark:bg-canvas-dark border border-line-light dark:border-line-dark text-xs">
+                      <button
+                        onClick={() => setChartType("donut")}
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                          chartType === "donut"
+                            ? "bg-teal text-ink-dark shadow-xs"
+                            : "text-muted-light dark:text-muted-dark hover:text-ink-light dark:hover:text-ink-dark"
+                        }`}
+                      >
+                        🍩 Donut Graph
+                      </button>
+                      <button
+                        onClick={() => setChartType("pentagon")}
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                          chartType === "pentagon"
+                            ? "bg-teal text-ink-dark shadow-xs"
+                            : "text-muted-light dark:text-muted-dark hover:text-ink-light dark:hover:text-ink-dark"
+                        }`}
+                      >
+                        🔷 Pentagon Graph
+                      </button>
+                      <button
+                        onClick={() => setChartType("line")}
+                        className={`px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5 ${
+                          chartType === "line"
+                            ? "bg-teal text-ink-dark shadow-xs"
+                            : "text-muted-light dark:text-muted-dark hover:text-ink-light dark:hover:text-ink-dark"
+                        }`}
+                      >
+                        📈 Line Trend
+                      </button>
                     </div>
                   </div>
 
-                  {renderLineChart(
-                    engagement.timeline.map(t => ({ date: t.date, value: t.likes + t.comments + t.shares })),
-                    "var(--teal)"
+                  {/* Render Graph Based on Selected Chart Type */}
+                  {chartType === "donut" && (
+                    renderDonutChart(
+                      engagement.platform_breakdown.map((p, idx) => ({
+                        label: p.platform,
+                        value: p.engagement,
+                        color: ["#0a66c2", "#e4405f", "#1da1f2", "#1877f2", "#ff0000"][idx % 5],
+                      }))
+                    )
+                  )}
+
+                  {chartType === "pentagon" && (
+                    renderPentagonChart([
+                      { label: "Likes", value: engagement.summary.total_likes, max: Math.max(engagement.summary.total_likes * 1.5, 500) },
+                      { label: "Comments", value: engagement.summary.total_comments, max: Math.max(engagement.summary.total_comments * 2.5, 100) },
+                      { label: "Shares", value: engagement.summary.total_shares, max: Math.max(engagement.summary.total_shares * 2.5, 100) },
+                      { label: "Link Clicks", value: engagement.summary.total_clicks, max: Math.max(engagement.summary.total_clicks * 1.5, 1500) },
+                      { label: "Engagement", value: engagement.summary.total_engagement, max: Math.max(engagement.summary.total_engagement * 1.2, 1000) },
+                    ])
+                  )}
+
+                  {chartType === "line" && (
+                    renderLineChart(
+                      engagement.timeline.map((t) => ({ date: t.date, value: t.likes + t.comments + t.shares })),
+                      "var(--teal)"
+                    )
                   )}
                 </div>
 
-                {/* Platform Engagement Breakdown */}
+                {/* 5-Vertex Pentagon Metric Radar Breakdown */}
                 <div className="p-6 rounded-2xl bg-card-light dark:bg-card-dark border border-line-light dark:border-line-dark shadow-sm space-y-4">
-                  <h3 className="text-base font-bold">Platform Engagement Breakdown</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {engagement.platform_breakdown.map(p => (
+                  <div>
+                    <h3 className="text-base font-bold">5-Axis Pentagon Performance Radar</h3>
+                    <p className="text-xs text-muted-light dark:text-muted-dark">Multi-dimensional evaluation across 5 core engagement metrics</p>
+                  </div>
+                  {renderPentagonChart([
+                    { label: "Likes", value: engagement.summary.total_likes, max: Math.max(engagement.summary.total_likes * 1.5, 500) },
+                    { label: "Comments", value: engagement.summary.total_comments, max: Math.max(engagement.summary.total_comments * 2.5, 100) },
+                    { label: "Shares", value: engagement.summary.total_shares, max: Math.max(engagement.summary.total_shares * 2.5, 100) },
+                    { label: "Link Clicks", value: engagement.summary.total_clicks, max: Math.max(engagement.summary.total_clicks * 1.5, 1500) },
+                    { label: "Engagement", value: engagement.summary.total_engagement, max: Math.max(engagement.summary.total_engagement * 1.2, 1000) },
+                  ])}
+                </div>
+
+                {/* Platform Engagement Donut Breakdown */}
+                <div className="p-6 rounded-2xl bg-card-light dark:bg-card-dark border border-line-light dark:border-line-dark shadow-sm space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold">Platform Engagement Donut Breakdown</h3>
+                    <p className="text-xs text-muted-light dark:text-muted-dark">Visual proportion share per social channel</p>
+                  </div>
+                  {renderDonutChart(
+                    engagement.platform_breakdown.map((p, idx) => ({
+                      label: p.platform,
+                      value: p.engagement,
+                      color: ["#0a66c2", "#e4405f", "#1da1f2", "#1877f2", "#ff0000"][idx % 5],
+                    }))
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-line-light dark:border-line-dark">
+                    {engagement.platform_breakdown.map((p) => (
                       <div key={p.platform} className="p-4 rounded-xl bg-canvas-light dark:bg-canvas-dark border border-line-light dark:border-line-dark space-y-2">
                         <div className="flex justify-between items-center text-sm font-bold">
                           <span>{p.platform}</span>
