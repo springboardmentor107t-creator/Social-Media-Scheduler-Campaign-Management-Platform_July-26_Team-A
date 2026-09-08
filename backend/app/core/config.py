@@ -23,8 +23,9 @@ class Settings(BaseSettings):
     # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
     SECRET_KEY: str = os.getenv("SECRET_KEY", "CHANGE-ME-generate-a-real-256-bit-hex-secret")
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
+    # Read from env — default 60 min for dev convenience (use 15 min in production via .env)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_MINUTES", "10080"))  # 7 days
 
     # ── Environment ──────────────────────────────────────────────────────────
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")

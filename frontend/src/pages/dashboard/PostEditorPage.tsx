@@ -3,6 +3,9 @@
  * Route: /dashboard/creator/new
  *        /dashboard/creator/:id/edit
  *        /dashboard/creator/duplicate/:id
+ *
+ * AI Assist panel added: collapsed by default, calls POST /api/content/ai-suggest
+ * (server-side only — API key never touches the frontend).
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
@@ -10,6 +13,8 @@ import DashboardShell, { type NavItem } from "../../components/DashboardShell";
 import RoleGate from "../../components/RoleGate";
 import PlatformPreview from "../../components/PlatformPreview";
 import BestTimeToPost from "../../components/BestTimeToPost";
+import AIAssistPanel, { type AIAssistResult } from "../../components/AIAssistPanel";
+import HashtagChips from "../../components/HashtagChips";
 import { apiFetch, uploadFileApi } from "../../services/api";
 
 const CREATOR_NAV: NavItem[] = [
@@ -30,6 +35,22 @@ interface SocialAccountOption {
   account_name: string;
   is_active: boolean;
 }
+
+const isUUID = (str?: string) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+const MOCK_PRELOAD_POSTS: Record<string, { title: string; body: string; content_type: ContentType }> = {
+  d1: { title: "Q3 Product Recap", body: "Drafting the quarterly product recap highlighting major platform improvements and user metrics.", content_type: "text" },
+  d2: { title: "Customer Success Story", body: "Sharing how our team helped scale engagement by 150% in under 3 months.", content_type: "image" },
+  d3: { title: "Thought Leadership Post", body: "Key takeaways on the future of AI-assisted social media marketing and automation.", content_type: "text" },
+  c1: { title: "Summer Campaign Launch", body: "Kickstarting our summer promotion campaign with special discounts across all channels!", content_type: "image" },
+  c2: { title: "Product Feature Thread", body: "Thread breaking down our top 5 new workspace management features for enterprise teams.", content_type: "text" },
+  c3: { title: "Weekly Tip — SEO Basics", body: "5 simple SEO strategies every content creator should know in 2026.", content_type: "text" },
+  c4: { title: "Flash Sale Announcement", body: "Flash sale alert! Get 30% off annual plans for the next 48 hours only.", content_type: "image" },
+  c5: { title: "Behind the Scenes Reel", body: "A quick look behind the scenes at how our design team builds new UI components.", content_type: "video" },
+  r1: { title: "Monday Motivation", body: "Start your week with purpose and drive! What goals are you tackling this week?", content_type: "text" },
+  r2: { title: "Weekly Newsletter", body: "Catch up on the latest industry insights, product updates, and creator spotlight stories.", content_type: "text" },
+  r3: { title: "Monthly Roundup", body: "Reflecting on this month's milestones and looking ahead to what's coming next.", content_type: "text" },
+};
 
 export default function PostEditorPage() {
   const { id } = useParams<{ id?: string }>();
@@ -64,6 +85,18 @@ export default function PostEditorPage() {
   const [toast, setToast] = useState("");
   const [validationError, setValidationError] = useState("");
 
+  // ── AI Assist state ──────────────────────────────────────────────────────
+  // variants: platform → body text (from last AI generation)
+  const [aiVariants, setAiVariants] = useState<Record<string, string>>({});
+  const [aiHashtags, setAiHashtags] = useState<string[]>([]);
+  // CTA phrase with [LINK] placeholder (e.g. "Shop now → [LINK]")
+  const [aiCallToAction, setAiCallToAction] = useState<string>("");
+  // Track whether each field was auto-filled so we can show the hint label
+  const [titleAiGenerated, setTitleAiGenerated] = useState(false);
+  const [bodyAiGenerated, setBodyAiGenerated] = useState(false);
+  // Active preview platform for variant switching (mirrors PlatformPreview tab)
+  const [activeVariantPlatform, setActiveVariantPlatform] = useState<string>("");
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
@@ -89,6 +122,20 @@ export default function PostEditorPage() {
   // Fetch post data for Edit or Duplicate mode
   useEffect(() => {
     if ((isEditMode || isDuplicateMode) && id) {
+      if (!isUUID(id)) {
+        // Handle mock fallback IDs gracefully without calling backend API
+        const mockItem = MOCK_PRELOAD_POSTS[id] || {
+          title: `Draft (${id})`,
+          body: "Sample mock draft content for editing.",
+          content_type: "text" as ContentType,
+        };
+        setTitle(isDuplicateMode ? `Copy of ${mockItem.title}` : mockItem.title);
+        setBody(mockItem.body);
+        setContentType(mockItem.content_type);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       apiFetch<any>(`/api/content/${id}`)
         .then((data) => {
@@ -183,7 +230,7 @@ export default function PostEditorPage() {
       };
 
       // 1. Create or update content item
-      if (isEditMode && contentId && !isReadOnly) {
+      if (isEditMode && contentId && isUUID(contentId) && !isReadOnly) {
         await apiFetch(`/api/content/${contentId}`, {
           method: "PATCH",
           body: JSON.stringify(contentPayload),
@@ -233,6 +280,41 @@ export default function PostEditorPage() {
   };
 
   const primaryProvider = connectedAccounts.find((a) => selectedAccountIds.includes(a.id))?.provider || "youtube";
+
+  // ── AI Assist handlers ────────────────────────────────────────────────────
+
+  const handleAISuggestion = (result: AIAssistResult) => {
+    // Fill title
+    setTitle(result.title);
+    setTitleAiGenerated(true);
+
+    // Store all variants
+    setAiVariants(result.variants);
+    setAiHashtags(result.hashtags);
+    setAiCallToAction(result.callToAction || "");
+
+    // Fill body with the first selected platform's variant (or the first variant)
+    const selectedPlatforms = connectedAccounts
+      .filter((a) => selectedAccountIds.includes(a.id))
+      .map((a) => a.provider.toLowerCase());
+    const firstPlatform = selectedPlatforms[0] ?? Object.keys(result.variants)[0] ?? "";
+    const firstBody = result.variants[firstPlatform] ?? Object.values(result.variants)[0] ?? "";
+    setBody(firstBody);
+    setBodyAiGenerated(true);
+    setActiveVariantPlatform(firstPlatform);
+  };
+
+  const handleHashtagAppend = (tag: string) => {
+    setBody((prev) => (prev ? `${prev} #${tag}` : `#${tag}`));
+    // Don't clear bodyAiGenerated — the user is intentionally modifying via chip
+  };
+
+  const handleHashtagRemove = (tag: string) => {
+    setAiHashtags((prev) => prev.filter((t) => t !== tag));
+  };
+
+  // Derive available variant platforms from last AI result
+  const variantPlatforms = Object.keys(aiVariants);
 
   return (
     <RoleGate allowedRole="creator">
@@ -300,17 +382,36 @@ export default function PostEditorPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left Form Controls (7 cols) */}
           <div className="lg:col-span-7 space-y-6">
+            {/* ── AI Assist Panel (collapsed by default) ──────────────── */}
+            <AIAssistPanel
+              selectedAccountIds={selectedAccountIds}
+              connectedAccounts={connectedAccounts}
+              onSuggestion={handleAISuggestion}
+              showToast={showToast}
+            />
+
             <fieldset disabled={isReadOnly} className="space-y-6">
               {/* Post Title */}
               <div className="surface rounded-2xl p-5 shadow-sm">
-                <label className="field-label block text-xs font-bold uppercase tracking-wider mb-2">
-                  Post Title <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider">
+                    Post Title <span className="text-red-500">*</span>
+                  </label>
+                  {titleAiGenerated && (
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(69,222,196,0.10)", color: "var(--teal-dim)" }}
+                    >
+                      ✨ AI-generated — edit as needed
+                    </span>
+                  )}
+                </div>
                 <input
+                  id="post-title-input"
                   type="text"
                   maxLength={255}
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => { setTitle(e.target.value); setTitleAiGenerated(false); }}
                   placeholder="e.g. Summer Product Announcement launch"
                   className="input-field w-full text-sm font-medium"
                 />
@@ -321,16 +422,116 @@ export default function PostEditorPage() {
 
               {/* Caption / Body Text */}
               <div className="surface rounded-2xl p-5 shadow-sm">
-                <label className="field-label block text-xs font-bold uppercase tracking-wider mb-2">
-                  Post Body / Caption <span className="text-red-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="field-label block text-xs font-bold uppercase tracking-wider">
+                    Post Body / Caption <span className="text-red-500">*</span>
+                  </label>
+                  {bodyAiGenerated && (
+                    <span
+                      className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(69,222,196,0.10)", color: "var(--teal-dim)" }}
+                    >
+                      ✨ AI-generated — edit as needed
+                    </span>
+                  )}
+                </div>
+
+                {/* Platform variant switcher tabs (only when multi-variant AI content exists) */}
+                {variantPlatforms.length > 1 && (
+                  <div className="flex flex-wrap gap-1 mb-3" role="tablist" aria-label="AI content variants per platform">
+                    {variantPlatforms.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        role="tab"
+                        aria-selected={p === activeVariantPlatform}
+                        onClick={() => {
+                          setActiveVariantPlatform(p);
+                          setBody(aiVariants[p] ?? "");
+                          setBodyAiGenerated(true);
+                        }}
+                        className="text-[11px] font-semibold px-3 py-1 rounded-lg capitalize transition-all"
+                        style={{
+                          background: p === activeVariantPlatform ? "var(--teal)" : "rgba(107,114,128,0.08)",
+                          color: p === activeVariantPlatform ? "#06231D" : "var(--ink-muted)",
+                          border: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    <span className="self-center text-[10px] ml-1" style={{ color: "var(--ink-muted)" }}>
+                      — AI variants per platform
+                    </span>
+                  </div>
+                )}
+
                 <textarea
+                  id="post-body-textarea"
                   rows={5}
                   value={body}
-                  onChange={(e) => setBody(e.target.value)}
+                  onChange={(e) => { setBody(e.target.value); setBodyAiGenerated(false); }}
                   placeholder="Write your main post copy here... hashtags, links, and text"
                   className="input-field w-full text-sm leading-relaxed"
                 />
+
+                {/* Hashtag chips from AI suggestion */}
+                <HashtagChips
+                  hashtags={aiHashtags}
+                  onAppend={handleHashtagAppend}
+                  onRemove={handleHashtagRemove}
+                />
+
+                {/* AI Call-to-Action editor */}
+                {aiCallToAction && (
+                  <div
+                    className="mt-3 flex flex-col gap-1.5 p-3 rounded-xl"
+                    style={{
+                      background: "rgba(69,222,196,0.06)",
+                      border: "1px solid rgba(69,222,196,0.25)",
+                    }}
+                  >
+                    <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "var(--teal-dim)" }}>
+                      🔗 AI Suggested Call-to-Action
+                    </p>
+                    <p className="text-[11px]" style={{ color: "var(--ink-muted)" }}>
+                      Replace <code style={{ background: "rgba(0,0,0,0.1)", padding: "0 3px", borderRadius: 3 }}>[LINK]</code> with your real URL, then click&nbsp;
+                      <strong>Append to Body</strong>.
+                    </p>
+                    <div className="flex gap-2 items-center">
+                      <input
+                        id="ai-cta-input"
+                        type="text"
+                        value={aiCallToAction}
+                        onChange={(e) => setAiCallToAction(e.target.value)}
+                        className="input-field flex-1 text-xs"
+                        placeholder="e.g. Shop the collection → https://yoursite.com"
+                      />
+                      <button
+                        id="ai-cta-append-btn"
+                        type="button"
+                        className="btn-primary-teal text-xs px-3 py-1.5 whitespace-nowrap"
+                        onClick={() => {
+                          setBody((prev) => (prev ? `${prev}\n\n${aiCallToAction}` : aiCallToAction));
+                          setAiCallToAction("");
+                          showToast("✅ CTA appended to body.");
+                        }}
+                      >
+                        Append to Body
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[11px] px-2 py-1 rounded"
+                        style={{ color: "var(--ink-muted)" }}
+                        onClick={() => setAiCallToAction("")}
+                        aria-label="Dismiss CTA suggestion"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Content Type Selector */}

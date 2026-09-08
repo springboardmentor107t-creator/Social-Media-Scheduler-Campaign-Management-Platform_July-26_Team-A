@@ -382,7 +382,33 @@ $env:MONGODB_URL="mongodb://admin:admin_password@localhost:27017/socialpilot_db?
 
 ## ⚙ Setup Instructions
 
-### 1. Clone Repository & Checkout Branch
+### ⚡ Quick Start (Single Terminal Command)
+You can launch all platform services (Docker DBs, FastAPI Backend, and React Frontend) directly from the project root using any of the following commands:
+
+* **Windows Command Prompt (CMD)**:
+  ```cmd
+  start.bat
+  ```
+* **Windows PowerShell**:
+  ```powershell
+  .\start.ps1
+  ```
+* **Cross-Platform Python**:
+  ```bash
+  python start.py
+  ```
+* **Git Bash / Linux / macOS**:
+  ```bash
+  ./start.sh
+  ```
+* **NPM**:
+  ```bash
+  npm start
+  ```
+
+---
+
+### 1. Manual Setup: Clone Repository & Checkout Branch
 ```bash
 git clone https://github.com/springboardmentor107t-creator/Social-Media-Scheduler-Campaign-Management-Platform_July-26_Team-A.git
 cd Social-Media-Scheduler-Campaign-Management-Platform_July-26_Team-A

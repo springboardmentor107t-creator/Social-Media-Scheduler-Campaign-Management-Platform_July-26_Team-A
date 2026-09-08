@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, text
 
 from app.presentation.routes import history, auth, users, content, campaigns, analytics, notifications
+from app.presentation.routes.notifications import set_main_loop
+from app.presentation.routes import ai_suggest
 from app.api import youtube, facebook, linkedin, instagram
 from app.models.facebook import FacebookAccount, FacebookPage
 from database.postgresql.connection import init_db
@@ -123,6 +125,7 @@ app.include_router(facebook.router)
 app.include_router(linkedin.router)
 app.include_router(instagram.router)
 app.include_router(notifications.router)
+app.include_router(ai_suggest.router, prefix="/api")
 
 # ── Static File Mount for Uploaded Media ─────────────────────────────────────
 uploads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
@@ -133,6 +136,8 @@ app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 # ── Startup ───────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_db():
+    import asyncio
+    set_main_loop(asyncio.get_event_loop())
     try:
         init_db()
         logger.info("PostgreSQL tables initialized successfully.")

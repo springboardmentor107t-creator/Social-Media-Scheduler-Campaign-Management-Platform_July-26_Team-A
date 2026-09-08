@@ -1,0 +1,21 @@
+{
+  "name": "socialpilot-platform",
+  "version": "1.0.0",
+  "description": "SocialPilot - Social Media Scheduler & Campaign Management Platform",
+  "main": "start.py",
+  "scripts": {
+    "start": "python start.py",
+    "start:bat": "start.bat",
+    "start:ps": "powershell -ExecutionPolicy Bypass -File .\\start.ps1",
+    "dev:backend": "cd backend && venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --port 8000",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "keywords": [
+    "socialpilot",
+    "fastapi",
+    "react",
+    "vite"
+  ],
+  "author": "Team A",
+  "license": "MIT"
+}

@@ -8,7 +8,7 @@
  *   - OnboardingChecklist widget (dismissible, localStorage-backed)
  *   - Bulk actions on My Content table (select-all, bulk delete, bulk reschedule)
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardShell, { type NavItem } from "../../components/DashboardShell";
 import RoleGate from "../../components/RoleGate";
@@ -16,7 +16,7 @@ import ConfirmModal from "../../components/ConfirmModal";
 import EmptyState, { PostsEmptyIcon } from "../../components/EmptyState";
 import { StatCardSkeleton } from "../../components/Skeleton";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
-import { apiFetch } from "../../services/api";
+import { apiFetch, uploadFileApi } from "../../services/api";
 
 // ── Nav items for Content Creator ─────────────────────────────────────────────
 const CREATOR_NAV: NavItem[] = [
@@ -97,7 +97,16 @@ const MOCK_RECURRING: RecurringPost[] = [
   { id: "r3", title: "Monthly Roundup",    frequency: "Monthly — 1st",      nextRun: "Sep 1",  platform: "Facebook",  active: false },
 ];
 
-const MOCK_MEDIA = [
+interface MediaItem {
+  id: string;
+  name: string;
+  type: "Image" | "Video";
+  size: string;
+  url?: string;
+  created_at?: string;
+}
+
+const MOCK_MEDIA: MediaItem[] = [
   { id: "m1", name: "hero-banner.jpg",  type: "Image", size: "1.2 MB" },
   { id: "m2", name: "product-demo.mp4", type: "Video", size: "34 MB"  },
   { id: "m3", name: "logo-dark.png",    type: "Image", size: "48 KB"  },
@@ -156,6 +165,83 @@ export default function CreatorPage() {
   const [roleDesc, setRoleDesc] = useState<string>("Individual users who create, manage, and publish content.");
   const [statsLoading, setStatsLoading] = useState(true);
   const [toast, setToast] = useState("");
+
+  // Draft & Recurring state (so we can mutate them)
+  const [drafts, setDrafts] = useState<Draft[]>(MOCK_DRAFTS);
+  const [recurringPosts, setRecurringPosts] = useState<RecurringPost[]>(MOCK_RECURRING);
+
+  // Media Library state
+  const [mediaList, setMediaList] = useState<MediaItem[]>(() => {
+    const saved = localStorage.getItem("creator_media_library");
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return MOCK_MEDIA as MediaItem[];
+  });
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedMediaItem, setSelectedMediaItem] = useState<MediaItem | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem("creator_media_library", JSON.stringify(mediaList));
+  }, [mediaList]);
+
+  const handleMediaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setUploadingMedia(true);
+    showToast("⏳ Uploading media file(s) to server...");
+
+    try {
+      const uploadPromises = files.map((file) => uploadFileApi(file));
+      const results = await Promise.all(uploadPromises);
+
+      const newMediaItems: MediaItem[] = results.map((res, index) => {
+        const originalFile = files[index];
+        const sizeStr =
+          originalFile.size > 1024 * 1024
+            ? `${(originalFile.size / (1024 * 1024)).toFixed(1)} MB`
+            : `${Math.round(originalFile.size / 1024)} KB`;
+        const isVideo =
+          originalFile.type.startsWith("video/") ||
+          res.filename.endsWith(".mp4") ||
+          res.filename.endsWith(".mov") ||
+          res.filename.endsWith(".webm");
+
+        return {
+          id: `m_${Date.now()}_${index}`,
+          name: res.filename || originalFile.name,
+          type: isVideo ? "Video" : "Image",
+          size: sizeStr,
+          url: res.url,
+          created_at: new Date().toISOString(),
+        };
+      });
+
+      setMediaList((prev) => [...newMediaItems, ...prev]);
+      showToast(`✅ Uploaded ${newMediaItems.length} media file(s) successfully!`);
+    } catch (err: any) {
+      showToast(`⚠️ Media upload failed: ${err.message || err}`);
+    } finally {
+      setUploadingMedia(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleDeleteMedia = (id: string) => {
+    setMediaList((prev) => prev.filter((m) => m.id !== id));
+    if (selectedMediaItem?.id === id) setSelectedMediaItem(null);
+    showToast("Media file deleted.");
+  };
+
+  const handleCopyMediaUrl = (url?: string) => {
+    if (!url) {
+      showToast("No direct URL available for mock item.");
+      return;
+    }
+    navigator.clipboard.writeText(url);
+    showToast("📋 Media URL copied to clipboard!");
+  };
 
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -217,6 +303,21 @@ export default function CreatorPage() {
       });
   };
 
+  // ── Helpers ────────────────────────────────────────────────────────────
+  /** Convert an ISO timestamp to a human-readable relative string like "2h ago", "Yesterday" */
+  const relativeTime = (isoStr: string): string => {
+    if (!isoStr) return "";
+    const diffMs = Date.now() - new Date(isoStr).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1)  return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return "Yesterday";
+    return `${days} days ago`;
+  };
+
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2800);
@@ -226,6 +327,7 @@ export default function CreatorPage() {
     apiFetch<{ total: number; items: any[] }>("/api/content")
       .then((data) => {
         if (data && data.items && data.items.length > 0) {
+          // ─ Populate My Content table
           const formatted: ContentRow[] = data.items.map((item) => ({
             id: item.id,
             title: item.title,
@@ -234,6 +336,26 @@ export default function CreatorPage() {
             scheduledTime: item.scheduledTime || "—",
           }));
           setContentRows(formatted);
+
+          // ─ Populate Draft Management section with real saved drafts
+          const apiDrafts: Draft[] = data.items
+            .filter((item) => {
+              const s = (item.display_status || item.status || "").toLowerCase();
+              return s === "draft";
+            })
+            .map((item) => ({
+              id: item.id,
+              title: item.title,
+              platform:
+                item.platform && item.platform !== "Unassigned"
+                  ? item.platform
+                  : "Draft",
+              lastEdited: relativeTime(item.updated_at || item.created_at),
+            }));
+
+          if (apiDrafts.length > 0) {
+            setDrafts(apiDrafts);
+          }
         }
       })
       .catch(() => {});
@@ -246,10 +368,15 @@ export default function CreatorPage() {
       .catch(() => {});
   }, []);
 
+  const isUUID = (str?: string) => !!str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
   const handleDeleteSingle = async (id: string) => {
     try {
-      await apiFetch(`/api/content/${id}`, { method: "DELETE" });
+      if (isUUID(id)) {
+        await apiFetch(`/api/content/${id}`, { method: "DELETE" });
+      }
       setContentRows((prev) => prev.filter((r) => r.id !== id));
+      setDrafts((prev) => prev.filter((r) => r.id !== id));
       showToast("Post deleted successfully.");
     } catch (err: any) {
       showToast(`Delete failed: ${err.message}`);
@@ -258,9 +385,14 @@ export default function CreatorPage() {
 
   const handleDuplicateSingle = async (id: string) => {
     try {
-      const dup = await apiFetch<any>(`/api/content/${id}/duplicate`, { method: "POST" });
-      showToast(`Duplicated into new draft: ${dup.title}`);
-      fetchContents();
+      if (isUUID(id)) {
+        const dup = await apiFetch<any>(`/api/content/${id}/duplicate`, { method: "POST" });
+        showToast(`Duplicated into new draft: ${dup.title}`);
+        fetchContents();
+      } else {
+        showToast("Duplicated mock post into draft editor.");
+        navigate(`/dashboard/creator/duplicate/${id}`);
+      }
     } catch (err: any) {
       showToast(`Duplicate failed: ${err.message}`);
     }
@@ -293,6 +425,28 @@ export default function CreatorPage() {
     showToast(`Rescheduled ${selectedIds.length} post(s) to ${new Date(bulkRescheduleDate).toLocaleDateString()}.`);
     setSelectedIds([]);
     setBulkRescheduleDate("");
+  };
+
+  // ── Draft handlers ─────────────────────────────────────────────────────────
+  const handleContinueEditing = (draftId: string) => {
+    // Navigate to PostEditor with the content ID to load & edit the draft
+    navigate(`/dashboard/creator/${draftId}/edit`);
+  };
+
+  // ── Recurring post handlers ────────────────────────────────────────────────
+  const handleToggleRecurring = (postId: string) => {
+    setRecurringPosts(prev =>
+      prev.map(p => {
+        if (p.id !== postId) return p;
+        const nowActive = !p.active;
+        showToast(`"${p.title}" ${nowActive ? "resumed" : "paused"}.`);
+        return { ...p, active: nowActive };
+      })
+    );
+  };
+
+  const handleEditRecurring = (postId: string) => {
+    navigate(`/dashboard/creator/${postId}/edit`);
   };
 
   return (
@@ -464,13 +618,20 @@ export default function CreatorPage() {
           {/* TODO: replace with GET /api/content?status=draft&owner=me */}
           <SectionCard title="Draft Management">
             <div className="space-y-3">
-              {MOCK_DRAFTS.map((draft) => (
+              {drafts.length === 0 ? (
+                <p className="text-xs text-center py-4" style={{ color: "var(--ink-muted)" }}>No drafts yet.</p>
+              ) : drafts.map((draft) => (
                 <div key={draft.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "rgba(107,114,128,0.05)", border: "1px solid var(--line)" }}>
                   <div>
                     <p className="text-sm font-semibold">{draft.title}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>{draft.platform} · Edited {draft.lastEdited}</p>
                   </div>
-                  <button className="text-xs font-medium px-3 py-1.5 rounded" style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.10)", border: "1px solid rgba(69,222,196,0.20)" }}>
+                  <button
+                    onClick={() => handleContinueEditing(draft.id)}
+                    className="text-xs font-medium px-3 py-1.5 rounded"
+                    style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.10)", border: "1px solid rgba(69,222,196,0.20)" }}
+                    aria-label={`Continue editing ${draft.title}`}
+                  >
                     Continue editing
                   </button>
                 </div>
@@ -482,7 +643,7 @@ export default function CreatorPage() {
           {/* TODO: replace with GET /api/content/recurring?owner=me */}
           <SectionCard title="Recurring Posts">
             <div className="space-y-3">
-              {MOCK_RECURRING.map((post) => (
+              {recurringPosts.map((post) => (
                 <div key={post.id} className="flex items-center justify-between p-3 rounded-lg" style={{ background: "rgba(107,114,128,0.05)", border: "1px solid var(--line)" }}>
                   <div>
                     <div className="flex items-center gap-2">
@@ -494,8 +655,22 @@ export default function CreatorPage() {
                     <p className="text-xs mt-0.5" style={{ color: "var(--ink-muted)" }}>{post.frequency} · Next: {post.nextRun}</p>
                   </div>
                   <div className="flex gap-2">
-                    <button className="text-xs font-medium px-2 py-1 rounded" style={{ color: "var(--ink-muted)", background: "rgba(107,114,128,0.08)" }}>{post.active ? "Pause" : "Resume"}</button>
-                    <button className="text-xs font-medium px-2 py-1 rounded" style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.08)" }}>Edit</button>
+                    <button
+                      onClick={() => handleToggleRecurring(post.id)}
+                      className="text-xs font-medium px-2 py-1 rounded"
+                      style={{ color: "var(--ink-muted)", background: "rgba(107,114,128,0.08)" }}
+                      aria-label={`${post.active ? "Pause" : "Resume"} ${post.title}`}
+                    >
+                      {post.active ? "Pause" : "Resume"}
+                    </button>
+                    <button
+                      onClick={() => handleEditRecurring(post.id)}
+                      className="text-xs font-medium px-2 py-1 rounded"
+                      style={{ color: "var(--teal-dim)", background: "rgba(69,222,196,0.08)" }}
+                      aria-label={`Edit ${post.title}`}
+                    >
+                      Edit
+                    </button>
                   </div>
                 </div>
               ))}
@@ -504,26 +679,145 @@ export default function CreatorPage() {
         </div>
 
         {/* ── Media Library ─────────────────────────────────────────────────── */}
-        {/* TODO: replace with GET /api/media?owner=me */}
         <div className="mt-6">
           <SectionCard title="Media Library">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs" style={{ color: "var(--ink-muted)" }}>{MOCK_MEDIA.length} files</span>
-              <button className="btn-outline-soft text-xs py-1.5 px-3">↑ Upload</button>
+            {/* Hidden native file input for media uploads */}
+            <input
+              type="file"
+              ref={mediaFileInputRef}
+              accept="image/*,video/*"
+              multiple
+              onChange={handleMediaFileUpload}
+              className="hidden"
+            />
+
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <span className="text-xs font-medium" style={{ color: "var(--ink-muted)" }}>
+                {mediaList.length} asset{mediaList.length === 1 ? "" : "s"} stored
+              </span>
+              <button
+                onClick={() => mediaFileInputRef.current?.click()}
+                disabled={uploadingMedia}
+                className="btn-outline-soft text-xs py-1.5 px-3 flex items-center gap-1.5 font-semibold"
+              >
+                {uploadingMedia ? "⏳ Uploading..." : "↑ Upload Asset"}
+              </button>
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {MOCK_MEDIA.map((m) => (
-                <div key={m.id} className="rounded-xl p-3 text-center group cursor-pointer" style={{ background: "rgba(107,114,128,0.06)", border: "1px solid var(--line)" }}>
-                  <div className="w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center text-xl" style={{ background: "rgba(69,222,196,0.10)" }}>
-                    {m.type === "Video" ? "🎬" : "🖼️"}
+              {mediaList.map((m) => (
+                <div
+                  key={m.id}
+                  onClick={() => setSelectedMediaItem(m)}
+                  className="rounded-xl p-3 text-center group cursor-pointer transition-all hover:scale-[1.02]"
+                  style={{
+                    background: "rgba(107,114,128,0.06)",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  <div
+                    className="w-12 h-12 mx-auto mb-2 rounded-lg flex items-center justify-center text-xl overflow-hidden relative"
+                    style={{ background: "rgba(69,222,196,0.10)" }}
+                  >
+                    {m.url ? (
+                      m.type === "Video" ? (
+                        <video src={m.url} className="w-full h-full object-cover" />
+                      ) : (
+                        <img src={m.url} alt={m.name} className="w-full h-full object-cover" />
+                      )
+                    ) : (
+                      <span>{m.type === "Video" ? "🎬" : "🖼️"}</span>
+                    )}
                   </div>
-                  <p className="text-[11px] font-semibold truncate">{m.name}</p>
-                  <p className="text-[10px] mt-0.5" style={{ color: "var(--ink-muted)" }}>{m.size}</p>
+                  <p className="text-[11px] font-semibold truncate" title={m.name}>
+                    {m.name}
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: "var(--ink-muted)" }}>
+                    {m.size}
+                  </p>
                 </div>
               ))}
             </div>
           </SectionCard>
         </div>
+
+        {/* Media Asset Detail / Preview Modal */}
+        {selectedMediaItem && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div
+              className="surface rounded-2xl p-6 max-w-md w-full shadow-2xl relative space-y-4"
+              style={{ border: "1px solid var(--line)" }}
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold truncate pr-4">{selectedMediaItem.name}</h3>
+                <button
+                  onClick={() => setSelectedMediaItem(null)}
+                  className="text-xs font-bold px-2 py-1 rounded"
+                  style={{ color: "var(--ink-muted)" }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Preview Box */}
+              <div className="w-full h-48 rounded-xl overflow-hidden bg-black/20 flex items-center justify-center border" style={{ borderColor: "var(--line)" }}>
+                {selectedMediaItem.url ? (
+                  selectedMediaItem.type === "Video" ? (
+                    <video src={selectedMediaItem.url} controls className="max-h-full max-w-full object-contain" />
+                  ) : (
+                    <img src={selectedMediaItem.url} alt={selectedMediaItem.name} className="max-h-full max-w-full object-contain" />
+                  )
+                ) : (
+                  <div className="text-center p-4">
+                    <span className="text-4xl block mb-2">{selectedMediaItem.type === "Video" ? "🎬" : "🖼️"}</span>
+                    <p className="text-xs" style={{ color: "var(--ink-muted)" }}>Sample static media preview</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Metadata */}
+              <div className="text-xs space-y-1 p-3 rounded-xl" style={{ background: "rgba(107,114,128,0.06)" }}>
+                <p><strong>Type:</strong> {selectedMediaItem.type}</p>
+                <p><strong>Size:</strong> {selectedMediaItem.size}</p>
+                {selectedMediaItem.url && (
+                  <p className="truncate font-mono text-[10px]" style={{ color: "var(--teal-dim)" }}>
+                    <strong>URL:</strong> {selectedMediaItem.url}
+                  </p>
+                )}
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-between gap-2 flex-wrap pt-2">
+                <div className="flex items-center gap-2">
+                  {selectedMediaItem.url && (
+                    <button
+                      onClick={() => handleCopyMediaUrl(selectedMediaItem.url)}
+                      className="btn-outline-soft text-xs py-1.5 px-3"
+                    >
+                      📋 Copy Link
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedMediaItem(null);
+                      navigate("/dashboard/creator/new");
+                    }}
+                    className="btn-primary-teal text-xs py-1.5 px-3"
+                  >
+                    ✍️ Use in Post
+                  </button>
+                </div>
+                <button
+                  onClick={() => handleDeleteMedia(selectedMediaItem.id)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded transition-colors"
+                  style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444" }}
+                >
+                  🗑️ Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
           {/* ── Personal Analytics ────────────────────────────────────────────── */}

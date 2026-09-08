@@ -13,9 +13,11 @@ import uuid as uuid_lib
 from datetime import datetime, timezone
 from typing import Optional, List
 
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from typing import TYPE_CHECKING
 
 from database.postgresql.connection import get_db
 from database.postgresql.models import User
@@ -23,6 +25,30 @@ from database.mongodb.connection import get_mongo_db
 from app.presentation.dependencies.auth import get_current_user
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
+
+# ── Main event loop reference (set at app startup) ─────────────────────────
+# Motor (AsyncIOMotorClient) is bound to the event loop running when it is
+# first used inside FastAPI. Background tasks spawned in worker threads must
+# therefore schedule coroutines onto THAT loop via run_coroutine_threadsafe(),
+# not create a brand-new loop with asyncio.run() (which silently fails).
+_main_loop: asyncio.AbstractEventLoop | None = None
+
+
+def set_main_loop(loop: asyncio.AbstractEventLoop) -> None:
+    """Called once at app startup to store the running event loop."""
+    global _main_loop
+    _main_loop = loop
+
+
+def schedule_notification_task(coro) -> None:
+    """
+    Schedule an async notification coroutine from a sync background thread.
+    Uses run_coroutine_threadsafe so Motor operations run on the correct loop.
+    Swallowed silently if the main loop isn't set yet (safety guard).
+    """
+    if _main_loop is None or not _main_loop.is_running():
+        return
+    asyncio.run_coroutine_threadsafe(coro, _main_loop)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -78,6 +104,43 @@ async def broadcast_campaign_notification(
         target_user_id=None,  # broadcast
         created_by=created_by_id,
     )
+
+
+async def notify_managers_and_admins(
+    notif_type: str,
+    message: str,
+    creator_id: str,
+    db: Session,
+) -> None:
+    """
+    Send a targeted in-app notification to every active Manager and Admin.
+
+    Called from content.py whenever a creator (role=user) creates, schedules,
+    or publishes a post.  Each manager/admin gets their own MongoDB document
+    so they can independently mark it as read.
+    """
+    from database.postgresql.models import User, UserRole  # avoid circular at module level
+
+    privileged_users = (
+        db.query(User)
+        .filter(
+            User.role.in_([UserRole.MANAGER, UserRole.ADMIN]),
+            User.is_active == True,
+        )
+        .all()
+    )
+
+    for recipient in privileged_users:
+        recipient_id = str(recipient.id)
+        # Skip notifying the creator themselves if they happen to be a manager/admin
+        if recipient_id == creator_id:
+            continue
+        await _create_notification(
+            notif_type=notif_type,
+            message=message,
+            target_user_id=recipient_id,
+            created_by=creator_id,
+        )
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────

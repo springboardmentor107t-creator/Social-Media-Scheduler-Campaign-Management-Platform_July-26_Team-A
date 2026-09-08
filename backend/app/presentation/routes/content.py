@@ -21,6 +21,7 @@ from database.postgresql.models import (
 )
 from app.core.config import settings
 from app.presentation.dependencies.auth import RBACException, get_current_user, require_min_role, require_owner_or_role
+from app.presentation.routes.notifications import notify_managers_and_admins, schedule_notification_task
 
 router = APIRouter(tags=["Content & Scheduling"])
 
@@ -278,6 +279,20 @@ def create_content(
     db.add(content)
     db.commit()
     db.refresh(content)
+
+    # ── Notify managers & admins when a creator saves a new post ─────────────
+    user_role_str = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if user_role_str == "user":
+        creator_name = current_user.username or current_user.email
+        schedule_notification_task(
+            notify_managers_and_admins(
+                notif_type="post_created",
+                message=f'\U0001f4dd {creator_name} created a new post: "{schema.title}"',
+                creator_id=str(current_user.id),
+                db=db,
+            )
+        )
+
     return _serialize_content(content, db)
 
 
@@ -805,6 +820,33 @@ def schedule_posts(
         content.status = ContentStatus.PENDING_APPROVAL
 
     db.commit()
+
+    # ── Notify managers & admins about scheduling / publishing ───────────────
+    if user_role_val == "user":
+        creator_name = current_user.username or current_user.email
+        _creator_id = str(current_user.id)
+        if schema.publish_now:
+            platforms = set()
+            for sp in created_sp_list:
+                sa = db.query(SocialAccount).filter(SocialAccount.id == sp.social_account_id).first()
+                if sa:
+                    platforms.add(sa.provider.capitalize())
+            platform_str = ", ".join(sorted(platforms)) if platforms else "social media"
+            _notif_type = "post_published"
+            _notif_msg = f'\U0001f680 {creator_name} published "{content.title}" to {platform_str}'
+        else:
+            scheduled_str = target_time.strftime("%b %d at %I:%M %p UTC")
+            _notif_type = "post_scheduled"
+            _notif_msg = f'\U0001f4c5 {creator_name} scheduled "{content.title}" for {scheduled_str}'
+
+        schedule_notification_task(
+            notify_managers_and_admins(
+                notif_type=_notif_type,
+                message=_notif_msg,
+                creator_id=_creator_id,
+                db=db,
+            )
+        )
 
     return {
         "message": f"Successfully scheduled {len(created_sp_list)} post(s)",

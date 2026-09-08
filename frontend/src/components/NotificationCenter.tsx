@@ -35,6 +35,9 @@ const NOTIF_ICONS: Record<string, { emoji: string; label: string }> = {
   team_role_change:     { emoji: "🔑", label: "Role change" },
   team_invite_accepted: { emoji: "👋", label: "Invite accepted" },
   team_invite_sent:     { emoji: "✉️", label: "Invite sent" },
+  post_created:         { emoji: "📝", label: "New post created" },
+  post_scheduled:       { emoji: "📅", label: "Post scheduled" },
+  post_published:       { emoji: "🚀", label: "Post published" },
 };
 
 function getIcon(type: string) {
